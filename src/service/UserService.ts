@@ -4,7 +4,7 @@ import {host} from "shared/config/constants";
 export const userAPI = createApi({
     reducerPath: 'userAPI',
     baseQuery: fetchBaseQuery({
-        baseUrl: `${host}/table_service/api/`,
+        baseUrl: `${host}/api/`,
     }),
     tagTypes: ['user'],
     endpoints: (build) => ({

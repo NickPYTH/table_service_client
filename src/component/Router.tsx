@@ -2,11 +2,13 @@ import {BrowserRouter, Route, Routes} from 'react-router-dom'
 import React from "react";
 import {Result} from "antd";
 import {routeConfig} from "./routeConfig";
+import {Navbar} from "shared/component/Navbar";
 
 
 export const Router: React.FC = () => {
     return (
         <BrowserRouter>
+            <Navbar />
             <Routes>
                 {Object.values(routeConfig).map(({element, path}) => (
                     <Route
