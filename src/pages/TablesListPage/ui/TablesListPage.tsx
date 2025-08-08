@@ -1,7 +1,20 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {TableModel} from "entities/TableModel";
-import {Button, Flex, Table, TableProps} from "antd";
+import {Button, Flex, Input, InputRef, Space, Table, TableProps} from "antd";
 import {tableAPI} from "service/TableService";
+import dayjs from "dayjs";
+import {ColumnType} from 'antd/es/table';
+import {SearchOutlined} from "@ant-design/icons";
+import {FilterConfirmProps} from 'antd/es/table/interface';
+import {CustomDateFilter} from 'shared/component/CustomDateFilter';
+import {useNavigate} from "react-router-dom";
+
+export interface DataType extends TableModel {
+    key: React.Key;
+    children?: any;
+}
+
+type DataIndex = keyof DataType;
 
 const TablesListPage: React.FC = () => {
 
@@ -22,7 +35,82 @@ const TablesListPage: React.FC = () => {
     }, []);
     // -----
 
+    // Handlers
+    const handleSearch = (selectedKeys: string[], confirm: (param?: FilterConfirmProps) => void, dataIndex: DataIndex) => {
+        confirm();
+    };
+    const handleReset = (clearFilters: () => void) => {
+        clearFilters();
+    };
+    // -----
+
     // Useful utils
+    const navigate = useNavigate();
+    const searchInput = useRef<InputRef>(null);
+    const getColumnSearchProps = (dataIndex: any): ColumnType<any> => ({
+        filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters, close}) => (
+            <div style={{padding: 8}} onKeyDown={(e) => e.stopPropagation()}>
+                <Input
+                    ref={searchInput}
+                    placeholder={`Поиск`}
+                    value={selectedKeys[0]}
+                    onChange={(e: any) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+                    onPressEnter={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+                    style={{marginBottom: 8, display: 'block'}}
+                />
+                <Space>
+                    <Button
+                        type="primary"
+                        onClick={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+                        icon={<SearchOutlined/>}
+                        size="small"
+                        style={{width: 90}}
+                    >
+                        Поиск
+                    </Button>
+                    <Button
+                        onClick={() => clearFilters && handleReset(clearFilters)}
+                        size="small"
+                        style={{width: 90}}
+                    >
+                        Сбросить
+                    </Button>
+                    <Button
+                        type="link"
+                        size="small"
+                        onClick={() => {
+                            close();
+                        }}
+                    >
+                        Закрыть
+                    </Button>
+                </Space>
+            </div>
+        ),
+        filterIcon: (filtered: boolean) => (
+            <SearchOutlined style={{color: filtered ? '#1677ff' : undefined}}/>
+        ),
+        onFilter: (value, record) => {
+            if (record[dataIndex])
+                try {
+                    return record[dataIndex]
+                        .toString()
+                        .toLowerCase()
+                        .includes((value as string).toLowerCase())
+                } catch (e) {
+                    return !!record.children.find((child: any) => child[dataIndex]
+                        .toString()
+                        .toLowerCase()
+                        .includes((value as string).toLowerCase()));
+                }
+        },
+        onFilterDropdownOpenChange: (visible) => {
+            if (visible) {
+                setTimeout(() => searchInput.current?.select(), 100);
+            }
+        },
+        render: (text) => (<div>{text}</div>)
+    });
     const columns: TableProps<TableModel>['columns'] = [
         {
             title: 'ИД',
@@ -37,15 +125,7 @@ const TablesListPage: React.FC = () => {
             dataIndex: 'title',
             key: 'title',
             sorter: (a, b) => a.title.charCodeAt(0) - b.title.charCodeAt(0),
-            filters: tables?.reduce((acc: { text: string, value: string }[], table: TableModel) => {
-                if (acc.find((g: { text: string, value: string }) => g.value == table.title) === undefined)
-                    return acc.concat({text: table.title, value: table.title});
-                return acc;
-            }, []),
-            onFilter: (value: any, record: TableModel) => {
-                return record.title.indexOf(value) === 0
-            },
-            filterSearch: true,
+            ...getColumnSearchProps('title'),
         },
         {
             title: 'Владелец',
@@ -64,16 +144,35 @@ const TablesListPage: React.FC = () => {
             filterSearch: true,
         },
         {
-            title: 'Дата создания',
+            title: 'Дата и время создания',
             dataIndex: 'created_at',
             key: 'created_at',
-            render: ((record: TableModel) => (<div>{record.created_at}</div>)),
+            render: ((value: string, record: TableModel) => (<div>{dayjs(record.created_at).format("DD.MM.YYYY mm:ss")}</div>)),
+            filterDropdown: CustomDateFilter,
+            onFilter: (value: any, record: TableModel) => {
+                const recordDate = dayjs(record.created_at);
+                const filterDate = value.date;
+                switch (value.operator) {
+                    case '=':
+                        return recordDate.isSame(filterDate, 'day');
+                    case '>':
+                        return recordDate.isAfter(filterDate, 'day');
+                    case '<':
+                        return recordDate.isBefore(filterDate, 'day');
+                    case '>=':
+                        return recordDate.isSame(filterDate, 'day') || recordDate.isAfter(filterDate, 'day');
+                    case '<=':
+                        return recordDate.isSame(filterDate, 'day') || recordDate.isBefore(filterDate, 'day');
+                    default:
+                        return false;
+                }
+            },
         },
-    ]
+    ];
     // -----
 
     return (
-        <Flex vertical={true} gap={'small'}>
+        <Flex vertical={true} gap={'small'} style={{padding: 5}}>
             <Flex justify={'space-between'} style={{marginTop: 10, marginLeft: 10}}>
                 <Button type={'primary'} style={{width: 150}}>Создать таблицу</Button>
             </Flex>
@@ -90,6 +189,7 @@ const TablesListPage: React.FC = () => {
                     return {
                         onDoubleClick: (e) => {
                             setSelectedTable(record);
+                            navigate(`${record.id}`);
                         },
                     };
                 }}
