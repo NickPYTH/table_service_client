@@ -7,9 +7,13 @@ import {useNavigate, useParams} from "react-router-dom";
 import {CellModel} from "entities/CellModel";
 import {ColumnModel} from "entities/ColumnModel";
 import {RowModel} from "entities/RowModel";
+import {ColumnModal} from "pages/TablePage/ui/ColumnModal";
+import {rowAPI} from "service/RowService";
+import {EditableCell, EditableRow} from "pages/TablePage/ui/EditableCell";
 
 export interface DataType extends TableModel {
     key: React.Key;
+    rowId: number;
     children?: any;
 }
 
@@ -22,6 +26,7 @@ const TablePage: React.FC = () => {
     const [table, setTable] = useState<TableModel | null>(null);
     const [columns, setColumns] = useState<TableProps<any>['columns']  | null>(null);
     const [rows, setRows] = useState<any[]>([]);
+    const [isVisibleColumnModal, setIsVisibleColumnModal] = useState(false);
     // -----
 
     // Web requests
@@ -29,12 +34,19 @@ const TablePage: React.FC = () => {
         data: tableData,
         isLoading: isTableDataLoading
     }] = tableAPI.useGetMutation();
+    const [createRow, {
+        isSuccess: isCreateRowSuccess,
+        isLoading: isCreateRowLoading
+    }] = rowAPI.useCreateMutation();
     // -----
 
     // Effects
     useEffect(() => {
         if (id) getTableData(id);
     }, []);
+    useEffect(() => {
+        if (isCreateRowSuccess && id) getTableData(id);
+    }, [isCreateRowSuccess]);
     useEffect(() => {
         if (tableData) {
             if (tableData.cells){
@@ -60,8 +72,12 @@ const TablePage: React.FC = () => {
                 // Создание колонок для таблицы
                 const columnsForTable: TableProps<any>['columns'] = columnsModels.map((column: ColumnModel) => ({
                     title: column.name,
-                    dataIndex: column.id,
-                    key: column.id
+                    render: (record: CellModel, row:any) => {
+                        return(<div>{record?.value}</div>)
+                    },
+                    dataIndex: column.id ?? 0,
+                    key: column.id ?? 0,
+                    editable: true,
                 }));
                 setColumns(columnsForTable);
                 // -----
@@ -71,9 +87,10 @@ const TablePage: React.FC = () => {
                     if (!tableData.cells) return null;
                     let cellsByRow = tableData.cells?.filter((cell:CellModel) => cell.row.id == row.id);
                     let item:any = {};
+                    item.rowId = row.id;
                     // Получив список всех ячеек в строке формируем объект для датасета где ключ это ИД колонки из ячейки
                     cellsByRow.forEach((cell:CellModel) => {
-                       item[cell.column.id] = cell.value;
+                       if (cell.column.id) item[cell.column.id] =  cell;
                     });
                     // -----
                     return item;
@@ -93,20 +110,69 @@ const TablePage: React.FC = () => {
     const handleReset = (clearFilters: () => void) => {
         clearFilters();
     };
+    const openColumnModalHandler = () => {
+        setIsVisibleColumnModal(true);
+    };
+    const addRowHandler = () => {
+        if(id) createRow(id);
+    }
     // -----
 
     // Useful utils
     const navigate = useNavigate();
+    const baseColumns: TableProps<any>['columns'] = [
+        {
+            title: "",
+            dataIndex: 'action',
+            key: 'action',
+            width: 100,
+            render: () => (<Flex><Button size={'small'}>Клик!</Button></Flex>)
+        }
+    ];
+    const handleSave = (row: DataType) => {
+        const newData = [...rows];
+        const index = newData.findIndex((item) => row.rowId === item.rowId);
+        const item = newData[index];
+        newData.splice(index, 1, {
+            ...item,
+            ...row,
+        });
+        setRows(newData);
+    };
+    const components = {
+        body: {
+            row: EditableRow,
+            cell: EditableCell,
+        },
+    };
+    const editableColumns = columns?.map((col:any) => {
+        if (!col.editable) {
+            return col;
+        }
+        return {
+            ...col,
+            onCell: (record: DataType) => {
+                return {
+                    record,
+                    editable: col.editable,
+                    dataIndex: col.dataIndex,
+                    title: col.title,
+                    handleSave,
+                }
+            },
+        };
+    });
     // -----
 
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
-            <h3>Имя таблички</h3>
+            {isVisibleColumnModal && <ColumnModal refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
+            <h3>{tableData ? tableData.title : "Ждем..."}</h3>
             <Flex style={{width: window.innerWidth - 10}}>
                 <Flex gap={'small'} style={{width: '100%'}}>
                     <Flex vertical gap={'small'}>
-                        <Button type={'primary'} style={{width: 200}}>Добавить столбец</Button>
-                        <Button type={'primary'} style={{width: 200}}>Добавить строку</Button>
+                        <Button type={'primary'} style={{width: 200}} onClick={openColumnModalHandler}>Добавить столбец</Button>
+                        <Button type={'primary'} style={{width: 200}} disabled={isCreateRowLoading} onClick={addRowHandler}>Добавить строку</Button>
                     </Flex>
                     <Flex vertical gap={'small'}>
                         <Button type={'primary'} style={{width: 200}}>Поделиться таблицей</Button>
@@ -122,16 +188,19 @@ const TablePage: React.FC = () => {
                     <Button danger type={'primary'} style={{width: 200}}>Завершить редактирование</Button>
                 </Flex>
             </Flex>
-            {columns ?
-                <Table
+
+            {editableColumns ?
+                <Table<DataType>
+                    rowClassName={() => 'editable-row'}
                     style={{width: '100vw'}}
-                    columns={columns}
+                    columns={editableColumns?.concat(baseColumns)}
                     dataSource={rows}
-                    loading={false}
+                    loading={isTableDataLoading}
                     bordered
                     pagination={{
                         defaultPageSize: 100,
                     }}
+                    components={components}
                     onRow={(record, rowIndex) => {
                         return {
                             onDoubleClick: (e) => {

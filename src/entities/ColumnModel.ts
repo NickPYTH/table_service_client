@@ -1,5 +1,8 @@
+
 export type ColumnModel = {
-    id: number;
+    id?: number;
     name: string;
-    order: number;
+    order?: number;
+    type: any;
+    table?: string;
 }
