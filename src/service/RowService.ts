@@ -17,5 +17,12 @@ export const rowAPI = createApi({
             }),
             invalidatesTags: ['row']
         }),
+        delete: build.mutation<void, number>({
+            query: (id) => ({
+                url: `/${id}/`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: ['row']
+        }),
     })
 });

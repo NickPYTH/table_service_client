@@ -90,17 +90,17 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
 
     if (editable) {
         childNode = editing ? (
-            <Flex gap={'small'} style={{width: "100%"}}>
-                    <Input value={cellValue}
-                           onChange={(e) => setCellValue(e.target.value)}
-                    />
+            <Flex gap={'small'} justify={'center'} style={{width: "97%", padding: 5 }}>
+                <Input value={cellValue}
+                       onChange={(e) => setCellValue(e.target.value)}
+                />
                 <Button icon={<SaveOutlined />} onClick={save}/>
                 <Button danger icon={<CloseOutlined />} onClick={cancel}/>
             </Flex>
         ) : (
             <div
                 className="editable-cell-value-wrap"
-                style={{ paddingInlineEnd: 0, width: '100%', height: 24 }}
+                style={{width: '100%', height: 24 }}
                 onClick={toggleEdit}
             >
                 {children}

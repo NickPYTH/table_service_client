@@ -17,5 +17,13 @@ export const columnAPI = createApi({
             }),
             invalidatesTags: ['column']
         }),
+        patch: build.mutation<ColumnModel, { id: number, body: ColumnModel }>({
+            query: ({id, body}) => ({
+                url: `/${id}/`,
+                method: 'PATCH',
+                body
+            }),
+            invalidatesTags: ['column']
+        }),
     })
 });

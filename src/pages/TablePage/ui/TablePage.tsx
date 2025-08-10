@@ -1,6 +1,6 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {TableModel} from "entities/TableModel";
-import {Button, Flex, Spin, Table, TableProps} from "antd";
+import {Button, Flex, Input, InputRef, Popconfirm, Space, Spin, Table, TableProps, Tag} from "antd";
 import {tableAPI} from "service/TableService";
 import {FilterConfirmProps} from 'antd/es/table/interface';
 import {useNavigate, useParams} from "react-router-dom";
@@ -10,12 +10,16 @@ import {RowModel} from "entities/RowModel";
 import {ColumnModal} from "pages/TablePage/ui/ColumnModal";
 import {rowAPI} from "service/RowService";
 import {EditableCell, EditableRow} from "pages/TablePage/ui/EditableCell";
+import {ColumnType} from "antd/es/table";
+import {SearchOutlined, SettingOutlined} from "@ant-design/icons";
 
 export interface DataType extends TableModel {
     key: React.Key;
     rowId: number;
     children?: any;
 }
+
+
 
 type DataIndex = keyof DataType;
 
@@ -27,7 +31,78 @@ const TablePage: React.FC = () => {
     const [columns, setColumns] = useState<TableProps<any>['columns']  | null>(null);
     const [rows, setRows] = useState<any[]>([]);
     const [isVisibleColumnModal, setIsVisibleColumnModal] = useState(false);
+    const [selectedColumn, setSelectedColumn] = useState<ColumnModel | null>(null);
+    const searchInput = useRef<InputRef>(null);
     // -----
+
+    // For search
+    const getColumnSearchProps = (dataIndex: any): ColumnType<any> => ({
+        filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters, close}) => (
+            <div style={{padding: 8}} onKeyDown={(e) => e.stopPropagation()}>
+                <Input
+                    ref={searchInput}
+                    placeholder={`Поиск`}
+                    value={selectedKeys[0]}
+                    onChange={(e: any) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+                    onPressEnter={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+                    style={{marginBottom: 8, display: 'block'}}
+                />
+                <Space>
+                    <Button
+                        type="primary"
+                        onClick={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+                        icon={<SearchOutlined/>}
+                        size="small"
+                        style={{width: 90}}
+                    >
+                        Поиск
+                    </Button>
+                    <Button
+                        onClick={() => clearFilters && handleReset(clearFilters)}
+                        size="small"
+                        style={{width: 90}}
+                    >
+                        Сбросить
+                    </Button>
+                    <Button
+                        type="link"
+                        size="small"
+                        onClick={() => {
+                            close();
+                        }}
+                    >
+                        Закрыть
+                    </Button>
+                </Space>
+            </div>
+        ),
+        filterIcon: (filtered: boolean) => (
+            <Button size={'small'} icon={<SearchOutlined style={{color: filtered ? '#1677ff' : undefined}}/>} />
+        ),
+        onFilter: (value, record) => {
+            if (record[dataIndex]?.value)
+                try {
+                    return record[dataIndex].value
+                        .toString()
+                        .toLowerCase()
+                        .includes((value as string).toLowerCase())
+                } catch (e) {
+                    return !!record.children.find((child: any) => child[dataIndex].value
+                        .toString()
+                        .toLowerCase()
+                        .includes((value as string).toLowerCase()));
+                }
+        },
+        onFilterDropdownOpenChange: (visible) => {
+            if (visible) {
+                setTimeout(() => searchInput.current?.select(), 100);
+            }
+        },
+        render: (text) => {
+            return (<div>{text?.value}</div>)
+        }
+    });
+    //
 
     // Web requests
     const [getTableData, {
@@ -38,6 +113,10 @@ const TablePage: React.FC = () => {
         isSuccess: isCreateRowSuccess,
         isLoading: isCreateRowLoading
     }] = rowAPI.useCreateMutation();
+    const [deleteRow, {
+        isSuccess: isDeleteRowSuccess,
+        isLoading: isDeleteRowLoading
+    }] = rowAPI.useDeleteMutation();
     // -----
 
     // Effects
@@ -71,13 +150,34 @@ const TablePage: React.FC = () => {
 
                 // Создание колонок для таблицы
                 const columnsForTable: TableProps<any>['columns'] = columnsModels.map((column: ColumnModel) => ({
-                    title: column.name,
+                    title: () => {
+                        return(<Flex gap={'small'} justify={'space-between'}>
+                            <div>{column.name}</div>
+                            <Flex align={'center'}>
+                                <Tag color={column.data_type == 'text' ? 'geekblue':column.data_type == 'integer' ? 'green': 'volcano'} style={{lineHeight: "14px"}}>{column.data_type}</Tag>
+                                <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
+                                    setSelectedColumn(column);
+                                    setIsVisibleColumnModal(true);
+                                }}/>
+                            </Flex>
+                        </Flex>)
+                    },
                     render: (record: CellModel, row:any) => {
                         return(<div>{record?.value}</div>)
                     },
                     dataIndex: column.id ?? 0,
                     key: column.id ?? 0,
                     editable: true,
+                    // sorter: (a, b) => {
+                    //     if (!column.id) return 0;
+                    //     let columnId = column.id.toString();
+                    //     let valueA = a[columnId]?.value;
+                    //     let valueB = b[columnId]?.value;
+                    //     if (column.data_type == "text") return valueA && valueB ? valueA.toString().charCodeAt(0) - valueB.toString().charCodeAt(0) : 0;
+                    //     if (column.data_type == "integer") return valueA && valueB ? valueA - valueB : 0;
+                    //     return 0;
+                    // },
+                    ...getColumnSearchProps(column.id),
                 }));
                 setColumns(columnsForTable);
                 // -----
@@ -101,6 +201,7 @@ const TablePage: React.FC = () => {
             }
         }
     }, [tableData]);
+    useEffect(() => !isVisibleColumnModal ? setSelectedColumn(null) : ()=>{}, [isVisibleColumnModal])
     // -----
 
     // Handlers
@@ -116,6 +217,10 @@ const TablePage: React.FC = () => {
     const addRowHandler = () => {
         if(id) createRow(id);
     }
+    const deleteRowHandler = (rowId: number) => {
+        deleteRow(rowId);
+        setRows(prev => prev.filter((row) => row.rowId != rowId));
+    }
     // -----
 
     // Useful utils
@@ -126,7 +231,13 @@ const TablePage: React.FC = () => {
             dataIndex: 'action',
             key: 'action',
             width: 100,
-            render: () => (<Flex><Button size={'small'}>Клик!</Button></Flex>)
+            render: (record, row) => {
+                return (<Flex style={{width: '100%'}} justify={'center'} align={'center'}>
+                    <Popconfirm title={"Удалить строку?"} okText={"Да"} onConfirm={() => deleteRowHandler(row.rowId)}>
+                        <Button danger size={'small'}>Удалить</Button>
+                    </Popconfirm>
+                </Flex>)
+            }
         }
     ];
     const handleSave = (row: DataType) => {
@@ -166,7 +277,7 @@ const TablePage: React.FC = () => {
 
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
-            {isVisibleColumnModal && <ColumnModal refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
+            {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
             <h3>{tableData ? tableData.title : "Ждем..."}</h3>
             <Flex style={{width: window.innerWidth - 10}}>
                 <Flex gap={'small'} style={{width: '100%'}}>
@@ -188,18 +299,18 @@ const TablePage: React.FC = () => {
                     <Button danger type={'primary'} style={{width: 200}}>Завершить редактирование</Button>
                 </Flex>
             </Flex>
-
             {editableColumns ?
                 <Table<DataType>
                     rowClassName={() => 'editable-row'}
-                    style={{width: '100vw'}}
                     columns={editableColumns?.concat(baseColumns)}
-                    dataSource={rows}
+                    dataSource={rows.sort((a:any, b:any) => a.rowId - b.rowId)}
                     loading={isTableDataLoading}
                     bordered
                     pagination={{
                         defaultPageSize: 100,
                     }}
+                    virtual
+                    scroll={{ x: window.innerWidth-10, y: window.innerHeight - 295 }}
                     components={components}
                     onRow={(record, rowIndex) => {
                         return {

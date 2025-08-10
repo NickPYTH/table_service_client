@@ -3,6 +3,6 @@ export type ColumnModel = {
     id?: number;
     name: string;
     order?: number;
-    type: any;
+    data_type: any;
     table?: string;
 }

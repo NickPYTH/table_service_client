@@ -13,17 +13,18 @@ enum ColumnType {
 }
 
 type ModalProps = {
+    column: ColumnModel | null,
     visible: boolean,
     setVisible: Function,
     refresh: Function,
 }
 
 export const ColumnModal = (props: ModalProps) => {
-
+    console.log(props)
     // States
     let {id} = useParams();
-    const [columnName, setColumnName] = useState("");
-    const [columnType, setColumnType] = useState<ColumnType>(ColumnType.TEXT);
+    const [columnName, setColumnName] = useState(props.column ? props.column.name : "");
+    const [columnType, setColumnType] = useState<ColumnType>(props.column ? props.column.data_type.toUpperCase() : ColumnType.TEXT);
     const [isRequired, setIsRequired] = useState(false);
     // -----
 
@@ -32,15 +33,19 @@ export const ColumnModal = (props: ModalProps) => {
         isSuccess: createColumnSuccess,
         isLoading: isCreateColumnLoading
     }] = columnAPI.useCreateMutation();
+    const [patchColumn, {
+        isSuccess: patchColumnSuccess,
+        isLoading: isPatchColumnLoading
+    }] = columnAPI.usePatchMutation();
     // -----
 
     // Effects
     useEffect(() => {
-        if (createColumnSuccess) {
+        if (createColumnSuccess || patchColumnSuccess) {
             props.setVisible(false);
             props.refresh();
         }
-    }, [createColumnSuccess]);
+    }, [createColumnSuccess || patchColumnSuccess]);
     // -----
 
     // Handlers
@@ -57,24 +62,33 @@ export const ColumnModal = (props: ModalProps) => {
         if (columnName && columnType){
             let column: ColumnModel = {
                 name: columnName,
-                type: columnType,
+                data_type: columnType.toLowerCase(),
                 table: id
             }
             createColumn(column);
         }
-    }
+    };
+    const patchColumnHandler = () => {
+        if (columnName && columnType && props.column && props.column.id){
+            let column: ColumnModel = {
+                name: columnName,
+                data_type: columnType.toLowerCase(),
+            }
+            patchColumn({id: props.column.id, body: column});
+        }
+    };
     // -----
 
     return (
-        <Modal title={"Добавить столбец"}
+        <Modal title={props.column ? "Редактировать столбец" : "Добавить столбец"}
                maskClosable={false}
                open={props.visible}
-               onOk={createColumnHandler}
+               onOk={props.column ? patchColumnHandler : createColumnHandler}
                onCancel={() => props.setVisible(false)}
-               okText={"Добавить"}
+               okText={props.column ? "Сохранить" : "Добавить"}
                width={'500px'}
-               loading={isCreateColumnLoading}
-               confirmLoading={isCreateColumnLoading}
+               loading={isCreateColumnLoading || isPatchColumnLoading}
+               confirmLoading={isCreateColumnLoading || isPatchColumnLoading}
         >
             <Flex gap={'small'} vertical>
                 <Flex align={'center'} gap={'small'}>
