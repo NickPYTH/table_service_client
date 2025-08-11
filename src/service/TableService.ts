@@ -23,5 +23,25 @@ export const tableAPI = createApi({
             }),
             invalidatesTags: ['table']
         }),
+        create: build.mutation<TableModel, string>({
+            query: (title) => ({
+                url: `table/`,
+                method: 'POST',
+                body: {
+                    title
+                }
+            }),
+            invalidatesTags: ['table']
+        }),
+        patch: build.mutation<TableModel, {id: string, title: string}>({
+            query: ({id, title}) => ({
+                url: `table/${id}/`,
+                method: 'PATCH',
+                body: {
+                    title
+                }
+            }),
+            invalidatesTags: ['table']
+        }),
     })
 });

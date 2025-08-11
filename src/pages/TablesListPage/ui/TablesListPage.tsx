@@ -8,6 +8,7 @@ import {SearchOutlined} from "@ant-design/icons";
 import {FilterConfirmProps} from 'antd/es/table/interface';
 import {CustomDateFilter} from 'shared/component/CustomDateFilter';
 import {useNavigate} from "react-router-dom";
+import {CreateTableModal} from "./CreateTableModal";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -20,6 +21,7 @@ const TablesListPage: React.FC = () => {
 
     // States
     const [selectedTable, setSelectedTable] = useState<TableModel | null>(null);
+    const [isVisibleCreateTableModal, setIsVisibleCreateTableModal] = useState(false);
     // -----
 
     // Web requests
@@ -173,8 +175,9 @@ const TablesListPage: React.FC = () => {
 
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
+            {isVisibleCreateTableModal && <CreateTableModal visible={isVisibleCreateTableModal} setVisible={setIsVisibleCreateTableModal}/>}
             <Flex justify={'space-between'} style={{marginTop: 10, marginLeft: 10}}>
-                <Button type={'primary'} style={{width: 150}}>Создать таблицу</Button>
+                <Button type={'primary'} style={{width: 150}} onClick={() => setIsVisibleCreateTableModal(true)}>Создать таблицу</Button>
             </Flex>
             <Table
                 style={{width: '100vw'}}

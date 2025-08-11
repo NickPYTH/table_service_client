@@ -25,5 +25,12 @@ export const columnAPI = createApi({
             }),
             invalidatesTags: ['column']
         }),
+        delete: build.mutation<void, number>({
+            query: (id) => ({
+                url: `/${id}/`,
+                method: 'DELETE'
+            }),
+            invalidatesTags: ['column']
+        }),
     })
 });

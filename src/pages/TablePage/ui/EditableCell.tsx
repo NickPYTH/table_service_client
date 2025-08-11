@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import type {GetRef} from 'antd';
-import {Button, Flex, Form, Input} from 'antd';
+import {Button, Checkbox, Flex, Form, Input, Tag} from 'antd';
 import {cellAPI} from "service/CellService";
 import {CellModel} from "entities/CellModel";
 import {CheckOutlined, CloseOutlined, SaveOutlined} from "@ant-design/icons";
@@ -44,7 +44,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     // States
     const [editing, setEditing] = useState(false);
     const [prevCellState, setPrevCellState] = useState<CellModel|null>(null);
-    const [cellValue, setCellValue] = useState<string>("");
+    const [cellValue, setCellValue] = useState<any>();
     // -----
 
     // Web requests
@@ -69,7 +69,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
             toggleEdit();
             let tmp = {...prevCellState, value: cellValue};
             if (tmp.id) {
-                updateCellValue({id: tmp.id, value: cellValue})
+                updateCellValue({id: tmp.id, value: cellValue.toString()})
                 let copy = JSON.parse(JSON.stringify(record));
                 //@ts-ignore
                 copy[prevCellState?.column?.id].value = cellValue
@@ -91,9 +91,22 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     if (editable) {
         childNode = editing ? (
             <Flex gap={'small'} justify={'center'} style={{width: "97%", padding: 5 }}>
-                <Input value={cellValue}
-                       onChange={(e) => setCellValue(e.target.value)}
-                />
+                {prevCellState?.column.data_type == "integer" ?
+                    <Input value={cellValue}
+                           onChange={(e) => setCellValue(e.target.value)}
+                    /> :
+                    prevCellState?.column.data_type == "text" ?
+                        <Input value={cellValue}
+                               onChange={(e) => setCellValue(e.target.value)}
+                        /> :
+                    prevCellState?.column.data_type == "float" ?
+                    <Input value={cellValue}
+                           onChange={(e) => setCellValue(e.target.value)}
+                    /> :
+                    prevCellState?.column.data_type == "boolean" ?
+                        <Checkbox checked={!!cellValue} onChange={(e) => setCellValue(e.target.checked)}/>:
+                    <Tag>Странно...</Tag>
+                }
                 <Button icon={<SaveOutlined />} onClick={save}/>
                 <Button danger icon={<CloseOutlined />} onClick={cancel}/>
             </Flex>

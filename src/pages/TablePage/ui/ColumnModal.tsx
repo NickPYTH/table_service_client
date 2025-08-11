@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Checkbox, Flex, Input, Modal, Select} from 'antd';
+import {Button, Checkbox, Flex, Input, Modal, Popconfirm, Select} from 'antd';
 import {useParams} from "react-router-dom";
 import {columnAPI} from "service/ColumnService";
 import {ColumnModel} from "entities/ColumnModel";
@@ -20,7 +20,7 @@ type ModalProps = {
 }
 
 export const ColumnModal = (props: ModalProps) => {
-    console.log(props)
+
     // States
     let {id} = useParams();
     const [columnName, setColumnName] = useState(props.column ? props.column.name : "");
@@ -37,15 +37,19 @@ export const ColumnModal = (props: ModalProps) => {
         isSuccess: patchColumnSuccess,
         isLoading: isPatchColumnLoading
     }] = columnAPI.usePatchMutation();
+    const [deleteColumn, {
+        isSuccess: deleteColumnSuccess,
+        isLoading: isDeleteColumnLoading
+    }] = columnAPI.useDeleteMutation();
     // -----
 
     // Effects
     useEffect(() => {
-        if (createColumnSuccess || patchColumnSuccess) {
+        if (createColumnSuccess || patchColumnSuccess || deleteColumnSuccess) {
             props.setVisible(false);
             props.refresh();
         }
-    }, [createColumnSuccess || patchColumnSuccess]);
+    }, [createColumnSuccess || patchColumnSuccess || deleteColumnSuccess]);
     // -----
 
     // Handlers
@@ -77,6 +81,11 @@ export const ColumnModal = (props: ModalProps) => {
             patchColumn({id: props.column.id, body: column});
         }
     };
+    const deleteColumnHandler = () => {
+        if (props.column && props.column.id){
+            deleteColumn(props.column.id);
+        }
+    };
     // -----
 
     return (
@@ -87,8 +96,19 @@ export const ColumnModal = (props: ModalProps) => {
                onCancel={() => props.setVisible(false)}
                okText={props.column ? "Сохранить" : "Добавить"}
                width={'500px'}
-               loading={isCreateColumnLoading || isPatchColumnLoading}
-               confirmLoading={isCreateColumnLoading || isPatchColumnLoading}
+               loading={isCreateColumnLoading || isPatchColumnLoading || isDeleteColumnLoading}
+               confirmLoading={isCreateColumnLoading || isPatchColumnLoading || isDeleteColumnLoading}
+               footer={() => (
+                   <Flex gap={'small'} justify={'flex-end'}>
+                       <Popconfirm title={"Удалить колонку?"} okText={"Да"} onConfirm={deleteColumnHandler}>
+                           <Button danger>Удалить</Button>
+                       </Popconfirm>
+                       <Button onClick={() => props.setVisible(false)}>Отменить</Button>
+                       <Button onClick={props.column ? patchColumnHandler : createColumnHandler}>
+                           {props.column ? "Сохранить" : "Добавить"}
+                       </Button>
+                   </Flex>
+               )}
         >
             <Flex gap={'small'} vertical>
                 <Flex align={'center'} gap={'small'}>

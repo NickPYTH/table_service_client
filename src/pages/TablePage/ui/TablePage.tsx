@@ -11,7 +11,7 @@ import {ColumnModal} from "pages/TablePage/ui/ColumnModal";
 import {rowAPI} from "service/RowService";
 import {EditableCell, EditableRow} from "pages/TablePage/ui/EditableCell";
 import {ColumnType} from "antd/es/table";
-import {SearchOutlined, SettingOutlined} from "@ant-design/icons";
+import {CloseOutlined, EditOutlined, SaveOutlined, SearchOutlined, SettingOutlined} from "@ant-design/icons";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -27,6 +27,9 @@ const TablePage: React.FC = () => {
 
     // States
     let {id} = useParams();
+    const [title, setTitle] = useState<string | null>(null);
+    const [isTitleEditMode, setIsTitleEditMode] = useState(false);
+    const [editTitle, setEditTitle] = useState<string | null>(null);
     const [table, setTable] = useState<TableModel | null>(null);
     const [columns, setColumns] = useState<TableProps<any>['columns']  | null>(null);
     const [rows, setRows] = useState<any[]>([]);
@@ -109,6 +112,11 @@ const TablePage: React.FC = () => {
         data: tableData,
         isLoading: isTableDataLoading
     }] = tableAPI.useGetMutation();
+    const [patchTable, {
+        data: patchedTable,
+        isSuccess: isTablePatchSuccess,
+        isLoading: isTablePatchLoading
+    }] = tableAPI.usePatchMutation();
     const [createRow, {
         isSuccess: isCreateRowSuccess,
         isLoading: isCreateRowLoading
@@ -128,6 +136,7 @@ const TablePage: React.FC = () => {
     }, [isCreateRowSuccess]);
     useEffect(() => {
         if (tableData) {
+            setTitle(tableData.title);
             if (tableData.cells){
 
                 // Получение списка уникальных колонок
@@ -154,7 +163,11 @@ const TablePage: React.FC = () => {
                         return(<Flex gap={'small'} justify={'space-between'}>
                             <div>{column.name}</div>
                             <Flex align={'center'}>
-                                <Tag color={column.data_type == 'text' ? 'geekblue':column.data_type == 'integer' ? 'green': 'volcano'} style={{lineHeight: "14px"}}>{column.data_type}</Tag>
+                                <Tag color={column.data_type == 'text' ? 'geekblue':
+                                    column.data_type == 'integer' ? 'green':
+                                    column.data_type == 'float' ? 'cyan':
+                                    column.data_type == 'date' ? 'magenta':
+                                        'volcano'} style={{lineHeight: "14px"}}>{column.data_type}</Tag>
                                 <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
                                     setSelectedColumn(column);
                                     setIsVisibleColumnModal(true);
@@ -202,6 +215,13 @@ const TablePage: React.FC = () => {
         }
     }, [tableData]);
     useEffect(() => !isVisibleColumnModal ? setSelectedColumn(null) : ()=>{}, [isVisibleColumnModal])
+    useEffect(() => {
+        if (patchedTable) {
+            setTitle(patchedTable.title);
+            setEditTitle(null);
+            setIsTitleEditMode(false);
+        }
+    }, [isTablePatchSuccess]);
     // -----
 
     // Handlers
@@ -216,10 +236,15 @@ const TablePage: React.FC = () => {
     };
     const addRowHandler = () => {
         if(id) createRow(id);
-    }
+    };
     const deleteRowHandler = (rowId: number) => {
         deleteRow(rowId);
         setRows(prev => prev.filter((row) => row.rowId != rowId));
+    };
+    const saveTitleHandler = () => {
+        if (editTitle && id) {
+            patchTable({id, title: editTitle});
+        }
     }
     // -----
 
@@ -278,7 +303,26 @@ const TablePage: React.FC = () => {
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
             {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
-            <h3>{tableData ? tableData.title : "Ждем..."}</h3>
+            <Flex align={'center'} gap={'small'} style={{margin: "15px 0 15px 0"}}>
+                {isTitleEditMode ?
+                <>
+                    <Input disabled={isTablePatchLoading} style={{width: 200}} value={editTitle ?? ""} onChange={(e) => setEditTitle(e.target.value)} />
+                    <Button disabled={isTablePatchLoading} icon={<SaveOutlined />} onClick={saveTitleHandler}/>
+                    <Button disabled={isTablePatchLoading} danger icon={<CloseOutlined />} onClick={() => {
+                        setIsTitleEditMode(false);
+                        setEditTitle(null);
+                    }}/>
+                </>
+                    :
+                <>
+                    <div style={{fontWeight: 'bold'}}>{title ? title : "Ждем..."}</div>
+                    <Button icon={<EditOutlined />} onClick={() => {
+                        setIsTitleEditMode(true);
+                        setEditTitle(title);
+                    }}/>
+                </>
+                }
+            </Flex>
             <Flex style={{width: window.innerWidth - 10}}>
                 <Flex gap={'small'} style={{width: '100%'}}>
                     <Flex vertical gap={'small'}>
@@ -301,6 +345,7 @@ const TablePage: React.FC = () => {
             </Flex>
             {editableColumns ?
                 <Table<DataType>
+                    style={{height: 500}}
                     rowClassName={() => 'editable-row'}
                     columns={editableColumns?.concat(baseColumns)}
                     dataSource={rows.sort((a:any, b:any) => a.rowId - b.rowId)}
@@ -309,8 +354,8 @@ const TablePage: React.FC = () => {
                     pagination={{
                         defaultPageSize: 100,
                     }}
-                    virtual
-                    scroll={{ x: window.innerWidth-10, y: window.innerHeight - 295 }}
+                    //virtual
+                    //scroll={{ x: window.innerWidth, y: window.innerHeight}}
                     components={components}
                     onRow={(record, rowIndex) => {
                         return {
