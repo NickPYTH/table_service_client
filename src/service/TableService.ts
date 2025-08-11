@@ -43,5 +43,12 @@ export const tableAPI = createApi({
             }),
             invalidatesTags: ['table']
         }),
+        delete: build.mutation<TableModel, string>({
+            query: (id) => ({
+                url: `table/${id}/`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: ['table']
+        }),
     })
 });

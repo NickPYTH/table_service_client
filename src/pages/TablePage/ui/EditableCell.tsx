@@ -3,7 +3,7 @@ import type {GetRef} from 'antd';
 import {Button, Checkbox, Flex, Form, Input, Tag} from 'antd';
 import {cellAPI} from "service/CellService";
 import {CellModel} from "entities/CellModel";
-import {CheckOutlined, CloseOutlined, SaveOutlined} from "@ant-design/icons";
+import {CloseOutlined, SaveOutlined} from "@ant-design/icons";
 
 type FormInstance<T> = GetRef<typeof Form<T>>;
 
@@ -116,7 +116,11 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
                 style={{width: '100%', height: 24 }}
                 onClick={toggleEdit}
             >
-                {children}
+                {record[dataIndex]?.column.data_type == "boolean" ?
+                    <>{record[dataIndex]?.value ? "Да" : "Нет"}</>
+                    :
+                    <>{record[dataIndex]?.value}</>
+                }
             </div>
         );
     }

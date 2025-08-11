@@ -30,6 +30,7 @@ const TablePage: React.FC = () => {
     const [title, setTitle] = useState<string | null>(null);
     const [isTitleEditMode, setIsTitleEditMode] = useState(false);
     const [editTitle, setEditTitle] = useState<string | null>(null);
+    const [owner, setOwner] = useState<string | null>(null);
     const [table, setTable] = useState<TableModel | null>(null);
     const [columns, setColumns] = useState<TableProps<any>['columns']  | null>(null);
     const [rows, setRows] = useState<any[]>([]);
@@ -117,6 +118,10 @@ const TablePage: React.FC = () => {
         isSuccess: isTablePatchSuccess,
         isLoading: isTablePatchLoading
     }] = tableAPI.usePatchMutation();
+    const [deleteTable, {
+        isSuccess: isTableDeleteSuccess,
+        isLoading: isTableDeleteLoading
+    }] = tableAPI.useDeleteMutation();
     const [createRow, {
         isSuccess: isCreateRowSuccess,
         isLoading: isCreateRowLoading
@@ -137,6 +142,7 @@ const TablePage: React.FC = () => {
     useEffect(() => {
         if (tableData) {
             setTitle(tableData.title);
+            setOwner(tableData.owner.username);
             if (tableData.cells){
 
                 // Получение списка уникальных колонок
@@ -174,9 +180,6 @@ const TablePage: React.FC = () => {
                                 }}/>
                             </Flex>
                         </Flex>)
-                    },
-                    render: (record: CellModel, row:any) => {
-                        return(<div>{record?.value}</div>)
                     },
                     dataIndex: column.id ?? 0,
                     key: column.id ?? 0,
@@ -222,6 +225,9 @@ const TablePage: React.FC = () => {
             setIsTitleEditMode(false);
         }
     }, [isTablePatchSuccess]);
+    useEffect(() => {
+        if (isTableDeleteSuccess) navigate("/table_service/tables_list");
+    }, [isTableDeleteSuccess]);
     // -----
 
     // Handlers
@@ -245,7 +251,10 @@ const TablePage: React.FC = () => {
         if (editTitle && id) {
             patchTable({id, title: editTitle});
         }
-    }
+    };
+    const deleteTableHandler = () => {
+        if(id) deleteTable(id);
+    };
     // -----
 
     // Useful utils
@@ -303,7 +312,7 @@ const TablePage: React.FC = () => {
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
             {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
-            <Flex align={'center'} gap={'small'} style={{margin: "15px 0 15px 0"}}>
+            <Flex align={'center'} gap={'small'} style={{marginTop: 15}}>
                 {isTitleEditMode ?
                 <>
                     <Input disabled={isTablePatchLoading} style={{width: 200}} value={editTitle ?? ""} onChange={(e) => setEditTitle(e.target.value)} />
@@ -323,6 +332,7 @@ const TablePage: React.FC = () => {
                 </>
                 }
             </Flex>
+            <div style={{fontSize: 12, marginBottom: 5}}>{owner}</div>
             <Flex style={{width: window.innerWidth - 10}}>
                 <Flex gap={'small'} style={{width: '100%'}}>
                     <Flex vertical gap={'small'}>
@@ -339,7 +349,11 @@ const TablePage: React.FC = () => {
                     </Flex>
                 </Flex>
                 <Flex vertical gap={'small'}>
-                    <Button danger type={'primary'} style={{width: 200}}>Удалить таблицу</Button>
+                    <Popconfirm title={"Вы точно хотите таблицу? Это действие необратимо."} onConfirm={deleteTableHandler}>
+                        <Button danger type={'primary'} style={{width: 200}}>
+                            Удалить таблицу
+                        </Button>
+                    </Popconfirm>
                     <Button danger type={'primary'} style={{width: 200}}>Завершить редактирование</Button>
                 </Flex>
             </Flex>
