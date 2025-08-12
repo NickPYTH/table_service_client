@@ -19,6 +19,28 @@ export interface DataType extends TableModel {
     children?: any;
 }
 
+function updateCellValueInArray(dataArray:any, targetId:any, newValue:any) {
+    // Создаем копию массива, чтобы не мутировать исходные данные
+    const result = JSON.parse(JSON.stringify(dataArray));
+
+    // Перебираем все объекты в массиве
+    result.forEach((item:any) => {
+        // Перебираем все ключи в объекте (кроме rowId)
+        for (const key in item) {
+            if (key === 'rowId') continue;
+
+            // Проверяем, есть ли у текущего элемента нужный ID
+            if (item[key].id === targetId) {
+                // Заменяем значение
+                item[key].value = newValue;
+                // Можно прервать цикл, если ID уникальны в рамках одного объекта
+                break;
+            }
+        }
+    });
+
+    return result;
+}
 
 
 type DataIndex = keyof DataType;
@@ -27,6 +49,7 @@ const TablePage: React.FC = () => {
 
     // States
     let {id} = useParams();
+    const [ws, setWs] = useState(null);
     const [title, setTitle] = useState<string | null>(null);
     const [isTitleEditMode, setIsTitleEditMode] = useState(false);
     const [editTitle, setEditTitle] = useState<string | null>(null);
@@ -111,6 +134,7 @@ const TablePage: React.FC = () => {
     // Web requests
     const [getTableData, {
         data: tableData,
+        isError: isErrorTableData,
         isLoading: isTableDataLoading
     }] = tableAPI.useGetMutation();
     const [patchTable, {
@@ -135,6 +159,43 @@ const TablePage: React.FC = () => {
     // Effects
     useEffect(() => {
         if (id) getTableData(id);
+    }, []);
+    useEffect(() => {
+        // Подключение к WebSocket
+        const socket = new WebSocket('ws://localhost:8000/ws/cell-updates/');
+
+        socket.onopen = () => {
+            console.log('WebSocket connected');
+        };
+
+        socket.onmessage = (event) => {
+            const message: {id: number, entity: CellModel, type: string} = JSON.parse(event.data);
+            if (message.type == 'cell_update') {
+                setRows((prev:any[]) => {
+                    let newState = JSON.parse(JSON.stringify(prev));
+                    console.log('prev', prev)
+                    const updatedData = updateCellValueInArray(newState, message.id, message.entity.value);
+                    console.log(updatedData);
+                    return updatedData;
+                })
+
+            }
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket disconnected');
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        //@ts-ignore
+        setWs(socket);
+
+        return () => {
+            socket.close();
+        };
     }, []);
     useEffect(() => {
         if (isCreateRowSuccess && id) getTableData(id);
@@ -228,6 +289,11 @@ const TablePage: React.FC = () => {
     useEffect(() => {
         if (isTableDeleteSuccess) navigate("/table_service/tables_list");
     }, [isTableDeleteSuccess]);
+    useEffect(() => {
+        if (isErrorTableData){
+            navigate("/not_found")
+        }
+    }, [isErrorTableData]);
     // -----
 
     // Handlers

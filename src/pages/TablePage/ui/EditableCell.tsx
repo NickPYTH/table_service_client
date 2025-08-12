@@ -62,6 +62,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     const toggleEdit = () => {
         setEditing(!editing);
         setPrevCellState(record[dataIndex]);
+        console.log(dataIndex, record, record[dataIndex])
         setCellValue(record[dataIndex].value);
     };
     const save = async () => {

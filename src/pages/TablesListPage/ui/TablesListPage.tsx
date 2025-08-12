@@ -22,19 +22,59 @@ const TablesListPage: React.FC = () => {
     // States
     const [selectedTable, setSelectedTable] = useState<TableModel | null>(null);
     const [isVisibleCreateTableModal, setIsVisibleCreateTableModal] = useState(false);
+    const [ws, setWs] = useState(null);
+    const [tables, setTables] = useState<TableModel[]>([]);
     // -----
 
     // Web requests
     const [getTables, {
-        data: tables,
+        data: tablesData,
         isLoading: isTablesLoading
     }] = tableAPI.useGetAllMutation();
     // -----
 
     // Effects
     useEffect(() => {
+        // Подключение к WebSocket
+        const socket = new WebSocket('ws://localhost:8000/ws/table-updates/');
+
+        socket.onopen = () => {
+            console.log('WebSocket connected');
+        };
+
+        socket.onmessage = (event) => {
+            const message: {id: number, entity: TableModel, type: string} = JSON.parse(event.data);
+            if (message.type == 'table_update') {
+                setTables((prev:TableModel[]) => {
+                    return prev.map((table:TableModel) => {
+                        if (table.id == message.id) return message.entity;
+                        else return table;
+                    });
+                })
+            }
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket disconnected');
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        //@ts-ignore
+        setWs(socket);
+
+        return () => {
+            socket.close();
+        };
+    }, []);
+    useEffect(() => {
         getTables();
     }, []);
+    useEffect(() => {
+        if (tablesData) setTables(tablesData);
+    }, [tablesData]);
     // -----
 
     // Handlers
