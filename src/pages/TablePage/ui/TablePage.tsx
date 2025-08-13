@@ -11,7 +11,14 @@ import {ColumnModal} from "pages/TablePage/ui/ColumnModal";
 import {rowAPI} from "service/RowService";
 import {EditableCell, EditableRow} from "pages/TablePage/ui/EditableCell";
 import {ColumnType} from "antd/es/table";
-import {CloseOutlined, EditOutlined, SaveOutlined, SearchOutlined, SettingOutlined} from "@ant-design/icons";
+import {
+    CheckCircleOutlined, CloseCircleOutlined,
+    CloseOutlined,
+    EditOutlined,
+    SaveOutlined,
+    SearchOutlined,
+    SettingOutlined
+} from "@ant-design/icons";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -50,6 +57,7 @@ const TablePage: React.FC = () => {
     // States
     let {id} = useParams();
     const [ws, setWs] = useState(null);
+    const [wsAlive, setWsAlive] = useState(false);
     const [title, setTitle] = useState<string | null>(null);
     const [isTitleEditMode, setIsTitleEditMode] = useState(false);
     const [editTitle, setEditTitle] = useState<string | null>(null);
@@ -166,6 +174,7 @@ const TablePage: React.FC = () => {
 
         socket.onopen = () => {
             console.log('WebSocket connected');
+            setWsAlive(true);
         };
 
         socket.onmessage = (event) => {
@@ -173,9 +182,7 @@ const TablePage: React.FC = () => {
             if (message.type == 'cell_update') {
                 setRows((prev:any[]) => {
                     let newState = JSON.parse(JSON.stringify(prev));
-                    console.log('prev', prev)
                     const updatedData = updateCellValueInArray(newState, message.id, message.entity.value);
-                    console.log(updatedData);
                     return updatedData;
                 })
 
@@ -184,10 +191,12 @@ const TablePage: React.FC = () => {
 
         socket.onclose = () => {
             console.log('WebSocket disconnected');
+            setWsAlive(false);
         };
 
         socket.onerror = (error) => {
             console.error('WebSocket error:', error);
+            setWsAlive(false);
         };
 
         //@ts-ignore
@@ -378,27 +387,43 @@ const TablePage: React.FC = () => {
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
             {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
-            <Flex align={'center'} gap={'small'} style={{marginTop: 15}}>
-                {isTitleEditMode ?
-                <>
-                    <Input disabled={isTablePatchLoading} style={{width: 200}} value={editTitle ?? ""} onChange={(e) => setEditTitle(e.target.value)} />
-                    <Button disabled={isTablePatchLoading} icon={<SaveOutlined />} onClick={saveTitleHandler}/>
-                    <Button disabled={isTablePatchLoading} danger icon={<CloseOutlined />} onClick={() => {
-                        setIsTitleEditMode(false);
-                        setEditTitle(null);
-                    }}/>
-                </>
-                    :
-                <>
-                    <div style={{fontWeight: 'bold'}}>{title ? title : "Ждем..."}</div>
-                    <Button icon={<EditOutlined />} onClick={() => {
-                        setIsTitleEditMode(true);
-                        setEditTitle(title);
-                    }}/>
-                </>
-                }
+            <Flex align={'center'} justify={'space-between'}>
+                <Flex vertical>
+                    <Flex align={'center'} gap={'small'} style={{marginTop: 15}}>
+                        {isTitleEditMode ?
+                            <>
+                                <Input disabled={isTablePatchLoading} style={{width: 200}} value={editTitle ?? ""} onChange={(e) => setEditTitle(e.target.value)} />
+                                <Button disabled={isTablePatchLoading} icon={<SaveOutlined />} onClick={saveTitleHandler}/>
+                                <Button disabled={isTablePatchLoading} danger icon={<CloseOutlined />} onClick={() => {
+                                    setIsTitleEditMode(false);
+                                    setEditTitle(null);
+                                }}/>
+                            </>
+                            :
+                            <>
+                                <div style={{fontWeight: 'bold'}}>{title ? title : "Ждем..."}</div>
+                                <Button icon={<EditOutlined />} onClick={() => {
+                                    setIsTitleEditMode(true);
+                                    setEditTitle(title);
+                                }}/>
+                            </>
+                        }
+                    </Flex>
+                    <div style={{fontSize: 12, marginBottom: 5}}>{owner}</div>
+                </Flex>
+                <Flex style={{fontSize: 12}}>
+                    {wsAlive ?
+                        <Tag icon={<CheckCircleOutlined />} color="success">
+                            Соединение активно
+                        </Tag>
+                        :
+                        <Tag icon={<CloseCircleOutlined />} color="error">
+                            Соединение отсутствует
+                        </Tag>
+                    }
+
+                </Flex>
             </Flex>
-            <div style={{fontSize: 12, marginBottom: 5}}>{owner}</div>
             <Flex style={{width: window.innerWidth - 10}}>
                 <Flex gap={'small'} style={{width: '100%'}}>
                     <Flex vertical gap={'small'}>

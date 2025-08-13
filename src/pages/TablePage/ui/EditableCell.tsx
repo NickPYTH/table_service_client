@@ -1,9 +1,10 @@
 import React, {useState} from 'react';
 import type {GetRef} from 'antd';
-import {Button, Checkbox, Flex, Form, Input, Tag} from 'antd';
+import {Button, Checkbox, DatePicker, Flex, Form, Input, InputNumber, Tag} from 'antd';
 import {cellAPI} from "service/CellService";
 import {CellModel} from "entities/CellModel";
 import {CloseOutlined, SaveOutlined} from "@ant-design/icons";
+import dayjs from "dayjs";
 
 type FormInstance<T> = GetRef<typeof Form<T>>;
 
@@ -63,17 +64,31 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         setEditing(!editing);
         setPrevCellState(record[dataIndex]);
         console.log(dataIndex, record, record[dataIndex])
-        setCellValue(record[dataIndex].value);
+        if (record[dataIndex].column.data_type == 'date' && record[dataIndex].value) setCellValue(dayjs(record[dataIndex].value, "YYYY-MM-DD"))
+        else setCellValue(record[dataIndex].value);
     };
     const save = async () => {
         try {
             toggleEdit();
             let tmp = {...prevCellState, value: cellValue};
             if (tmp.id) {
-                updateCellValue({id: tmp.id, value: cellValue.toString()})
                 let copy = JSON.parse(JSON.stringify(record));
-                //@ts-ignore
-                copy[prevCellState?.column?.id].value = cellValue
+                if (prevCellState?.column.data_type == 'date'){
+                    if (typeof cellValue == "object") {
+                        //@ts-ignore
+                        copy[prevCellState?.column?.id].value = cellValue.format('DD.MM.YYYY');
+                        updateCellValue({id: tmp.id, value: cellValue.format('YYYY-MM-DD')});
+                    }
+                    else {
+                        //@ts-ignore
+                        copy[prevCellState?.column?.id].value = "";
+                        updateCellValue({id: tmp.id, value: ""});
+                    }
+                } else {
+                    //@ts-ignore
+                    copy[prevCellState?.column?.id].value = cellValue;
+                    updateCellValue({id: tmp.id, value: cellValue});
+                }
                 handleSave(copy);
             } else console.log('Save failed');
         } catch (errInfo) {
@@ -93,17 +108,25 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         childNode = editing ? (
             <Flex gap={'small'} justify={'center'} style={{width: "97%", padding: 5 }}>
                 {prevCellState?.column.data_type == "integer" ?
-                    <Input value={cellValue}
-                           onChange={(e) => setCellValue(e.target.value)}
+                    <InputNumber precision={0} style={{width: '100%'}} value={cellValue}
+                           onChange={(e) => setCellValue(e)}
                     /> :
                     prevCellState?.column.data_type == "text" ?
                         <Input value={cellValue}
                                onChange={(e) => setCellValue(e.target.value)}
                         /> :
                     prevCellState?.column.data_type == "float" ?
-                    <Input value={cellValue}
-                           onChange={(e) => setCellValue(e.target.value)}
-                    /> :
+                        <InputNumber style={{width: '100%'}} value={cellValue}
+                                     onChange={(e) => setCellValue(e)}
+                        /> :
+                    prevCellState?.column.data_type == "date" ?
+                        <DatePicker placeholder={'Выберите дату'}
+                                    style={{width: '100%'}}
+                                    format={'DD.MM.YYYY'}
+                                    value={cellValue}
+                                    onChange={(date) => setCellValue(date)}
+                                    allowClear={false}
+                        /> :
                     prevCellState?.column.data_type == "boolean" ?
                         <Checkbox checked={!!cellValue} onChange={(e) => setCellValue(e.target.checked)}/>:
                     <Tag>Странно...</Tag>
