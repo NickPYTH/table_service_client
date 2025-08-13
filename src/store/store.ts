@@ -5,6 +5,7 @@ import {tableAPI} from "service/TableService";
 import {columnAPI} from "service/ColumnService";
 import {rowAPI} from "service/RowService";
 import {cellAPI} from "service/CellService";
+import {tablepermissionsAPI} from "service/TablePermissionsService";
 
 export type RootStateType = {
     currentUser: CurrentUserModelStateType
@@ -17,6 +18,7 @@ const rootReducer = combineReducers({
     [columnAPI.reducerPath]: columnAPI.reducer,
     [rowAPI.reducerPath]: rowAPI.reducer,
     [cellAPI.reducerPath]: cellAPI.reducer,
+    [tablepermissionsAPI.reducerPath]: tablepermissionsAPI.reducer,
 })
 
 export const setupStore = () => {
@@ -29,6 +31,7 @@ export const setupStore = () => {
                 .concat(columnAPI.middleware)
                 .concat(rowAPI.middleware)
                 .concat(cellAPI.middleware)
+                .concat(tablepermissionsAPI.middleware)
     })
 }
 

@@ -19,6 +19,7 @@ import {
     SearchOutlined,
     SettingOutlined
 } from "@ant-design/icons";
+import {TableSettingsModal} from "pages/TablePage/ui/TableSettingsModal";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -59,6 +60,7 @@ const TablePage: React.FC = () => {
     const [ws, setWs] = useState(null);
     const [wsAlive, setWsAlive] = useState(false);
     const [title, setTitle] = useState<string | null>(null);
+    const [isVisibleTableSettingsModal, setIsVisibleTableSettingsModal] = useState(false);
     const [isTitleEditMode, setIsTitleEditMode] = useState(false);
     const [editTitle, setEditTitle] = useState<string | null>(null);
     const [owner, setOwner] = useState<string | null>(null);
@@ -387,6 +389,7 @@ const TablePage: React.FC = () => {
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
             {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
+            {isVisibleTableSettingsModal && <TableSettingsModal visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
             <Flex align={'center'} justify={'space-between'}>
                 <Flex vertical>
                     <Flex align={'center'} gap={'small'} style={{marginTop: 15}}>
@@ -406,6 +409,9 @@ const TablePage: React.FC = () => {
                                     setIsTitleEditMode(true);
                                     setEditTitle(title);
                                 }}/>
+                                <Button icon={<SettingOutlined />} onClick={() => {
+                                    setIsVisibleTableSettingsModal(true);
+                                }}/>
                             </>
                         }
                     </Flex>
@@ -421,7 +427,6 @@ const TablePage: React.FC = () => {
                             Соединение отсутствует
                         </Tag>
                     }
-
                 </Flex>
             </Flex>
             <Flex style={{width: window.innerWidth - 10}}>
