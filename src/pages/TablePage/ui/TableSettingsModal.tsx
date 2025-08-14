@@ -26,6 +26,10 @@ export const TableSettingsModal = (props: ModalProps) => {
         isSuccess: isSuccessGetPermissionByTableId,
         isLoading: isLoadingGetPermissionByTableId
     }] = tablepermissionsAPI.useGetAllByTableIdMutation();
+    const [deleteTablePermission, {
+        isSuccess: isSuccessDeleteTablePermission,
+        isLoading: isLoadingDeleteTablePermission
+    }] = tablepermissionsAPI.useDeleteMutation();
     // -----
 
     // Effects
@@ -35,10 +39,15 @@ export const TableSettingsModal = (props: ModalProps) => {
     useEffect(() => {
         if (permissions) setPermissionsTableData(permissions);
     }, [permissions]);
+    useEffect(() => {
+        if (id) getPermissionByTableId(id);
+    }, [isSuccessDeleteTablePermission]);
     // -----
 
     // Handlers
-
+    const deletePermissionHandler = (permissionId:number) => {
+        deleteTablePermission(permissionId);
+    }
     // -----
 
     // Columns
@@ -53,15 +62,16 @@ export const TableSettingsModal = (props: ModalProps) => {
         },
         {
             title: 'Пользователь',
-            dataIndex: 'user_id',
-            key: 'user_id',
+            dataIndex: 'user',
+            key: 'user',
+            render: (value, record) => (<div>{record.user.username}</div>)
         },
         {
             title: '',
             dataIndex: 'actions',
             key: 'actions',
-            render: () => <Flex style={{width: '100%', margin: 2}} justify={'center'} gap={'small'}>
-                <Button size={'small'} danger>Удалить</Button>
+            render: (value, record) => <Flex style={{width: '100%', margin: 2}} justify={'center'} gap={'small'}>
+                <Button size={'small'} danger onClick={() => deletePermissionHandler(record.id)}>Удалить</Button>
             </Flex>
         },
     ];
@@ -76,7 +86,7 @@ export const TableSettingsModal = (props: ModalProps) => {
                loading={false}
                footer={() => (<></>)}
         >
-            {isVisibleAddUserModal && <AddUserModal visible={isVisibleAddUserModal} setVisible={setIsVisibleAddUserModal}/>}
+            {isVisibleAddUserModal && <AddUserModal refresh={() => getPermissionByTableId(id??"0")} visible={isVisibleAddUserModal} setVisible={setIsVisibleAddUserModal}/>}
             <Flex gap={'small'} vertical>
                 <Flex gap={'small'} vertical>
                     <Text>Права доступа пользователей</Text>
@@ -84,7 +94,7 @@ export const TableSettingsModal = (props: ModalProps) => {
                     <Table
                         columns={permissionsTableColumns}
                         dataSource={permissionsTableData}
-                        loading={isLoadingGetPermissionByTableId}
+                        loading={isLoadingGetPermissionByTableId || isLoadingDeleteTablePermission}
                         bordered
                     />
                 </Flex>

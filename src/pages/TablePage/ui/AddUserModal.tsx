@@ -1,17 +1,20 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect} from 'react';
 import {Button, Flex, Modal, Table, TableProps} from 'antd';
 import {userAPI} from "service/UserService";
 import {UserModel} from "entities/UserModel";
+import {useParams} from "react-router-dom";
+import {tablepermissionsAPI} from "service/TablePermissionsService";
 
 type ModalProps = {
     visible: boolean,
     setVisible: Function,
+    refresh: Function,
 }
 
 export const AddUserModal = (props: ModalProps) => {
 
     // States
-
+    let {id} = useParams();
     // -----
 
     // Web requests
@@ -19,16 +22,28 @@ export const AddUserModal = (props: ModalProps) => {
         data: users,
         isLoading: isUsersLoading
     }] = userAPI.useGetAllMutation();
+    const [createTablePermission, {
+        isSuccess: isSuccessCreateTablePermissions,
+        isLoading: isLoadingCreateTablePermissions
+    }] = tablepermissionsAPI.useCreateMutation();
     // -----
 
     // Effects
     useEffect(() => {
         getUsers();
     }, []);
+    useEffect(() => {
+        if (isSuccessCreateTablePermissions) {
+            props.setVisible(false);
+            props.refresh();
+        }
+    }, [isSuccessCreateTablePermissions]);
     // -----
 
     // Handlers
-
+    const createTablePermissionHandler = (userId: number) => {
+        if (id) createTablePermission({userId, tableId: id});
+    }
     // -----
 
     // Columns
@@ -51,7 +66,7 @@ export const AddUserModal = (props: ModalProps) => {
             dataIndex: 'action',
             key: 'action',
             render: (value, record) => <Flex style={{width: '100%', margin: 2}} justify={'center'} gap={'small'}>
-                <Button size={'small'}>Добавить</Button>
+                <Button size={'small'} onClick={() => createTablePermissionHandler(record.id)}>Добавить</Button>
             </Flex>
         },
     ];
@@ -70,7 +85,7 @@ export const AddUserModal = (props: ModalProps) => {
                 <Table
                     columns={columns}
                     dataSource={users}
-                    loading={isUsersLoading}
+                    loading={isUsersLoading || isLoadingCreateTablePermissions}
                     bordered
                 />
             </Flex>

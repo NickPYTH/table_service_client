@@ -16,5 +16,24 @@ export const tablepermissionsAPI = createApi({
             }),
             invalidatesTags: ['tablepermissions']
         }),
+        create: build.mutation<TablePermissionsModel, {tableId: string, userId: number}>({
+            query: ({tableId, userId}) => ({
+                url: `/`,
+                method: 'POST',
+                body: {
+                    table: tableId,
+                    user_id: userId,
+                    can_view: true
+                }
+            }),
+            invalidatesTags: ['tablepermissions']
+        }),
+        delete: build.mutation<void, number>({
+            query: (tablePermissionId) => ({
+                url: `/${tablePermissionId}/`,
+                method: 'DELETE'
+            }),
+            invalidatesTags: ['tablepermissions']
+        }),
     })
 });
