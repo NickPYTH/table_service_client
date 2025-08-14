@@ -6,6 +6,8 @@ import {columnAPI} from "service/ColumnService";
 import {rowAPI} from "service/RowService";
 import {cellAPI} from "service/CellService";
 import {tablepermissionsAPI} from "service/TablePermissionsService";
+import {tableFilialPermissionsAPI} from "service/TableFilialPermissionsService";
+import {filialAPI} from "service/FilialService";
 
 export type RootStateType = {
     currentUser: CurrentUserModelStateType
@@ -14,11 +16,13 @@ export type RootStateType = {
 const rootReducer = combineReducers({
     currentUser: userSlice,
     [userAPI.reducerPath]: userAPI.reducer,
+    [filialAPI.reducerPath]: filialAPI.reducer,
     [tableAPI.reducerPath]: tableAPI.reducer,
     [columnAPI.reducerPath]: columnAPI.reducer,
     [rowAPI.reducerPath]: rowAPI.reducer,
     [cellAPI.reducerPath]: cellAPI.reducer,
     [tablepermissionsAPI.reducerPath]: tablepermissionsAPI.reducer,
+    [tableFilialPermissionsAPI.reducerPath]: tableFilialPermissionsAPI.reducer,
 })
 
 export const setupStore = () => {
@@ -27,11 +31,13 @@ export const setupStore = () => {
         middleware: (getDefaultMiddleware) =>
             getDefaultMiddleware()
                 .concat(userAPI.middleware)
+                .concat(filialAPI.middleware)
                 .concat(tableAPI.middleware)
                 .concat(columnAPI.middleware)
                 .concat(rowAPI.middleware)
                 .concat(cellAPI.middleware)
                 .concat(tablepermissionsAPI.middleware)
+                .concat(tableFilialPermissionsAPI.middleware)
     })
 }
 

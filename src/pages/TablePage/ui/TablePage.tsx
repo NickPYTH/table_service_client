@@ -13,11 +13,11 @@ import {EditableCell, EditableRow} from "pages/TablePage/ui/EditableCell";
 import {ColumnType} from "antd/es/table";
 import {
     CheckCircleOutlined, CloseCircleOutlined,
-    CloseOutlined,
+    CloseOutlined, DeleteColumnOutlined, DeleteOutlined, DeleteRowOutlined,
     EditOutlined,
     SaveOutlined,
     SearchOutlined,
-    SettingOutlined
+    SettingOutlined, ShareAltOutlined
 } from "@ant-design/icons";
 import {TableSettingsModal} from "pages/TablePage/ui/TableSettingsModal";
 
@@ -161,8 +161,6 @@ const TablePage: React.FC = () => {
         isLoading: isCreateRowLoading
     }] = rowAPI.useCreateMutation();
     const [deleteRow, {
-        isSuccess: isDeleteRowSuccess,
-        isLoading: isDeleteRowLoading
     }] = rowAPI.useDeleteMutation();
     // -----
 
@@ -240,12 +238,15 @@ const TablePage: React.FC = () => {
                     title: () => {
                         return(<Flex gap={'small'} justify={'space-between'}>
                             <div>{column.name}</div>
-                            <Flex align={'center'}>
+                            <Flex align={'center'} gap={'small'}>
                                 <Tag color={column.data_type == 'text' ? 'geekblue':
                                     column.data_type == 'integer' ? 'green':
                                     column.data_type == 'float' ? 'cyan':
                                     column.data_type == 'date' ? 'magenta':
                                         'volcano'} style={{lineHeight: "14px"}}>{column.data_type}</Tag>
+                                <Popconfirm title={`Удалить колонку '${column.name}'?`}>
+                                    <Button size={'small'} icon={<DeleteColumnOutlined/>} danger/>
+                                </Popconfirm>
                                 <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
                                     setSelectedColumn(column);
                                     setIsVisibleColumnModal(true);
@@ -343,9 +344,10 @@ const TablePage: React.FC = () => {
             key: 'action',
             width: 100,
             render: (record, row) => {
-                return (<Flex style={{width: '100%'}} justify={'center'} align={'center'}>
+                return (<Flex style={{width: '100%'}} justify={'center'} align={'center'} gap={'small'}>
+                    <Button icon={<SettingOutlined />} size={'small'}/>
                     <Popconfirm title={"Удалить строку?"} okText={"Да"} onConfirm={() => deleteRowHandler(row.rowId)}>
-                        <Button danger size={'small'}>Удалить</Button>
+                        <Button icon={<DeleteRowOutlined />} danger size={'small'}/>
                     </Popconfirm>
                 </Flex>)
             }
@@ -412,10 +414,13 @@ const TablePage: React.FC = () => {
                                 <Button icon={<SettingOutlined />} onClick={() => {
                                     setIsVisibleTableSettingsModal(true);
                                 }}/>
+                                <Button icon={<ShareAltOutlined />} onClick={() => {
+
+                                }}/>
                             </>
                         }
                     </Flex>
-                    <div style={{fontSize: 12, marginBottom: 5}}>{owner}</div>
+                    <div style={{fontSize: 12, marginBottom: 5}}>{owner && <>Владелец: {owner}</>}</div>
                 </Flex>
                 <Flex style={{fontSize: 12}}>
                     {wsAlive ?
@@ -434,10 +439,6 @@ const TablePage: React.FC = () => {
                     <Flex vertical gap={'small'}>
                         <Button type={'primary'} style={{width: 200}} onClick={openColumnModalHandler}>Добавить столбец</Button>
                         <Button type={'primary'} style={{width: 200}} disabled={isCreateRowLoading} onClick={addRowHandler}>Добавить строку</Button>
-                    </Flex>
-                    <Flex vertical gap={'small'}>
-                        <Button type={'primary'} style={{width: 200}}>Поделиться таблицей</Button>
-                        <Button type={'primary'} style={{width: 200}}>Редактировать права</Button>
                     </Flex>
                     <Flex vertical gap={'small'}>
                         <Button type={'primary'} style={{width: 200}}>Экспорт таблицы</Button>
