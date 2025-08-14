@@ -21,7 +21,7 @@ export const AddUserModal = (props: ModalProps) => {
     const [getUsers, {
         data: users,
         isLoading: isUsersLoading
-    }] = userAPI.useGetAllMutation();
+    }] = userAPI.useGetAllByTableIdMutation();
     const [createTablePermission, {
         isSuccess: isSuccessCreateTablePermissions,
         isLoading: isLoadingCreateTablePermissions
@@ -30,7 +30,7 @@ export const AddUserModal = (props: ModalProps) => {
 
     // Effects
     useEffect(() => {
-        getUsers();
+        if(id) getUsers(id);
     }, []);
     useEffect(() => {
         if (isSuccessCreateTablePermissions) {

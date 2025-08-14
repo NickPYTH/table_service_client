@@ -16,9 +16,9 @@ export const userAPI = createApi({
             }),
             invalidatesTags: ['user']
         }),
-        getAll: build.mutation<UserModel[], void>({
-            query: () => ({
-                url: `/`,
+        getAllByTableId: build.mutation<UserModel[], string>({
+            query: (tableId) => ({
+                url: `/?table_id=${tableId}`,
                 method: 'GET',
             }),
             invalidatesTags: ['user']

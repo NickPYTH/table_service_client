@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {TableModel} from "entities/TableModel";
-import {Button, Flex, Input, InputRef, Space, Table, TableProps} from "antd";
+import {Button, Flex, Input, InputRef, Space, Table, TableProps, UploadProps} from "antd";
 import {tableAPI} from "service/TableService";
 import dayjs from "dayjs";
 import {ColumnType} from 'antd/es/table';
@@ -9,6 +9,8 @@ import {FilterConfirmProps} from 'antd/es/table/interface';
 import {CustomDateFilter} from 'shared/component/CustomDateFilter';
 import {useNavigate} from "react-router-dom";
 import {CreateTableModal} from "./CreateTableModal";
+import {ImportTableModal} from "pages/TablesListPage/ui/ImportTableModal";
+import {host} from "shared/config/constants";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -22,6 +24,7 @@ const TablesListPage: React.FC = () => {
     // States
     const [selectedTable, setSelectedTable] = useState<TableModel | null>(null);
     const [isVisibleCreateTableModal, setIsVisibleCreateTableModal] = useState(false);
+    const [isVisibleImportTableModal, setIsVisibleImportTableModal] = useState(false);
     const [ws, setWs] = useState(null);
     const [tables, setTables] = useState<TableModel[]>([]);
     // -----
@@ -51,6 +54,9 @@ const TablesListPage: React.FC = () => {
                         else return table;
                     });
                 })
+            }
+            else if (message.type == 'table_create') {
+                setTables((prev:TableModel[]) => prev.concat(message.entity));
             }
         };
 
@@ -215,9 +221,11 @@ const TablesListPage: React.FC = () => {
 
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
+            {isVisibleImportTableModal && <ImportTableModal visible={isVisibleImportTableModal} setVisible={setIsVisibleImportTableModal}/>}
             {isVisibleCreateTableModal && <CreateTableModal visible={isVisibleCreateTableModal} setVisible={setIsVisibleCreateTableModal}/>}
             <Flex justify={'space-between'} style={{marginTop: 10, marginLeft: 10}}>
-                <Button type={'primary'} style={{width: 150}} onClick={() => setIsVisibleCreateTableModal(true)}>Создать таблицу</Button>
+                <Button type={'primary'} style={{width: 140}} onClick={() => setIsVisibleCreateTableModal(true)}>Создать новую</Button>
+                <Button type={'primary'} style={{width: 140}} onClick={() => setIsVisibleImportTableModal(true)}>Импорт таблицы</Button>
             </Flex>
             <Table
                 style={{width: '100vw'}}
