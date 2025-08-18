@@ -20,6 +20,7 @@ import {
     SettingOutlined, ShareAltOutlined
 } from "@ant-design/icons";
 import {TableSettingsModal} from "pages/TablePage/ui/TableSettingsModal";
+import {RowSettingsModal} from "pages/TablePage/ui/RowSettingsModal";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -64,11 +65,12 @@ const TablePage: React.FC = () => {
     const [isTitleEditMode, setIsTitleEditMode] = useState(false);
     const [editTitle, setEditTitle] = useState<string | null>(null);
     const [owner, setOwner] = useState<string | null>(null);
-    const [table, setTable] = useState<TableModel | null>(null);
     const [columns, setColumns] = useState<TableProps<any>['columns']  | null>(null);
     const [rows, setRows] = useState<any[]>([]);
     const [isVisibleColumnModal, setIsVisibleColumnModal] = useState(false);
+    const [isVisibleRowModal, setIsVisibleRowModal] = useState(false);
     const [selectedColumn, setSelectedColumn] = useState<ColumnModel | null>(null);
+    const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
     const searchInput = useRef<InputRef>(null);
     // -----
 
@@ -345,7 +347,7 @@ const TablePage: React.FC = () => {
             width: 100,
             render: (record, row) => {
                 return (<Flex style={{width: '100%'}} justify={'center'} align={'center'} gap={'small'}>
-                    <Button icon={<SettingOutlined />} size={'small'}/>
+                    <Button icon={<SettingOutlined />} onClick={() => {setSelectedRowId(row.rowId); setIsVisibleRowModal(true);}} size={'small'}/>
                     <Popconfirm title={"Удалить строку?"} okText={"Да"} onConfirm={() => deleteRowHandler(row.rowId)}>
                         <Button icon={<DeleteRowOutlined />} danger size={'small'}/>
                     </Popconfirm>
@@ -390,6 +392,7 @@ const TablePage: React.FC = () => {
 
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
+            {(isVisibleRowModal && selectedRowId) && <RowSettingsModal rowId={selectedRowId} refresh={() => getTableData(id ?? "0")} visible={isVisibleRowModal} setVisible={setIsVisibleRowModal}/>}
             {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
             {isVisibleTableSettingsModal && <TableSettingsModal visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
             <Flex align={'center'} justify={'space-between'}>

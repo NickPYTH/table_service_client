@@ -16,5 +16,12 @@ export const filialAPI = createApi({
             }),
             invalidatesTags: ['filial']
         }),
+        getAllByRowId: build.mutation<FilialModel[], number>({
+            query: (rowId) => ({
+                url: `/?row_id=${rowId}`,
+                method: 'GET',
+            }),
+            invalidatesTags: ['filial']
+        }),
     })
 });

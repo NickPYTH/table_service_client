@@ -1,55 +1,53 @@
 import React, {useEffect, useState} from 'react';
 import {Button, Divider, Flex, Modal, Popconfirm, Table, TableProps, Typography} from 'antd';
-import {useParams} from "react-router-dom";
-import {tablepermissionsAPI} from "service/TablePermissionsService";
-import {TablePermissionsModel} from "entities/TablePermissionsModel";
 import {AddUserModal} from "pages/TablePage/ui/AddUserModal";
-import {tableFilialPermissionsAPI} from "service/TableFilialPermissionsService";
-import {TableFilialPermissionsModel} from "entities/TableFilialPermissionsModel";
 import {AddFilialModal} from "pages/TablePage/ui/AddFilialModal";
+import {rowPermissionsAPI} from "service/RowPermissionsService";
+import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {rowFilialPermissionsAPI} from "service/RowFilialPermissionsService";
+import {RowFilialPermissionsModel} from "entities/RowFilialPermissionsModel";
 
-const { Text, Link } = Typography;
+const { Text } = Typography;
 
 type ModalProps = {
+    rowId: number,
     visible: boolean,
     setVisible: Function,
+    refresh: Function,
 }
 
-export const TableSettingsModal = (props: ModalProps) => {
+export const RowSettingsModal = (props: ModalProps) => {
 
     // States
-    let {id} = useParams();
-    const [permissionsTableData, setPermissionsTableData] = useState<TablePermissionsModel[]>([]);
+    const [permissionsTableData, setPermissionsTableData] = useState<RowPermissionsModel[]>([]);
     const [isVisibleAddUserModal, setIsVisibleAddUserModal] = useState(false);
-    const [permissionsFilialTableData, setPermissionsFilialTableData] = useState<TableFilialPermissionsModel[]>([]);
+    const [permissionsFilialTableData, setPermissionsFilialTableData] = useState<RowFilialPermissionsModel[]>([]);
     const [isVisibleAddFilialModal, setIsVisibleAddFilialModal] = useState(false);
     // -----
 
     // Web requests
-    const [getPermissionByTableId, {
+    const [getPermissionByRowId, {
         data: permissions,
-        isLoading: isLoadingGetPermissionByTableId
-    }] = tablepermissionsAPI.useGetAllByTableIdMutation();
-    const [getFilialPermissionByTableId, {
+        isLoading: isLoadingGetPermissionByRowId
+    }] = rowPermissionsAPI.useGetAllByRowIdMutation();
+    const [getFilialPermissionByRowId, {
         data: filialPermissions,
-        isLoading: isLoadingGetFilialPermissionByTableId
-    }] = tableFilialPermissionsAPI.useGetAllByTableIdMutation();
-    const [deleteTablePermission, {
-        isSuccess: isSuccessDeleteTablePermission,
-        isLoading: isLoadingDeleteTablePermission
-    }] = tablepermissionsAPI.useDeleteMutation();
-    const [deleteTableFilialPermission, {
-        isSuccess: isSuccessDeleteTableFilialPermission,
-        isLoading: isLoadingDeleteTableFilialPermission
-    }] = tableFilialPermissionsAPI.useDeleteMutation();
+        isLoading: isLoadingGetFilialPermissionByRowId
+    }] = rowFilialPermissionsAPI.useGetAllByRowIdMutation();
+    const [deleteRowPermission, {
+        isSuccess: isSuccessDeleteRowPermission,
+        isLoading: isLoadingDeleteRowPermission
+    }] = rowPermissionsAPI.useDeleteMutation();
+    const [deleteRowFilialPermission, {
+        isSuccess: isSuccessDeleteRowFilialPermission,
+        isLoading: isLoadingDeleteRowFilialPermission
+    }] = rowFilialPermissionsAPI.useDeleteMutation();
     // -----
 
     // Effects
     useEffect(() => {
-        if (id) {
-            getPermissionByTableId(id);
-            getFilialPermissionByTableId(id);
-        }
+        getPermissionByRowId(props.rowId);
+        getFilialPermissionByRowId(props.rowId);
     }, []);
     useEffect(() => {
         if (permissions) setPermissionsTableData(permissions);
@@ -58,24 +56,24 @@ export const TableSettingsModal = (props: ModalProps) => {
         if (filialPermissions) setPermissionsFilialTableData(filialPermissions);
     }, [filialPermissions]);
     useEffect(() => {
-        if (id) getPermissionByTableId(id);
-    }, [isSuccessDeleteTablePermission]);
+        getPermissionByRowId(props.rowId);
+    }, [isSuccessDeleteRowPermission]);
     useEffect(() => {
-        if (id) getFilialPermissionByTableId(id);
-    }, [isSuccessDeleteTableFilialPermission])
+        getFilialPermissionByRowId(props.rowId);
+    }, [isSuccessDeleteRowFilialPermission])
     // -----
 
     // Handlers
     const deletePermissionHandler = (permissionId:number) => {
-        deleteTablePermission(permissionId);
+        deleteRowPermission(permissionId);
     }
     const deleteFilialPermissionHandler = (permissionId:number) => {
-        deleteTableFilialPermission(permissionId);
+        deleteRowFilialPermission(permissionId);
     }
     // -----
 
     // Columns
-    const permissionsTableColumns: TableProps<TablePermissionsModel>['columns'] = [
+    const permissionsTableColumns: TableProps<RowPermissionsModel>['columns'] = [
         {
             title: 'ИД',
             dataIndex: 'id',
@@ -96,14 +94,16 @@ export const TableSettingsModal = (props: ModalProps) => {
             key: 'actions',
             render: (value, record) => <Flex style={{width: '100%', margin: 2}} justify={'center'} gap={'small'}>
                 <Popconfirm title={`Вы точно хотите удалить доступ пользователя ${record.user.username}?`}
-                            onConfirm={() => deletePermissionHandler(record.id)}
+                            onConfirm={() => {
+                                deletePermissionHandler(record.id);
+                            }}
                 >
                     <Button size={'small'} danger>Удалить</Button>
                 </Popconfirm>
             </Flex>
         },
     ];
-    const permissionsFilialTableColumns: TableProps<TableFilialPermissionsModel>['columns'] = [
+    const permissionsFilialTableColumns: TableProps<RowFilialPermissionsModel>['columns'] = [
         {
             title: 'ИД',
             dataIndex: 'id',
@@ -134,7 +134,7 @@ export const TableSettingsModal = (props: ModalProps) => {
     // -----
 
     return (
-        <Modal title={"Настройки таблицы"}
+        <Modal title={"Настройки строки"}
                maskClosable={false}
                open={props.visible}
                onCancel={() => props.setVisible(false)}
@@ -142,8 +142,8 @@ export const TableSettingsModal = (props: ModalProps) => {
                loading={false}
                footer={() => (<></>)}
         >
-            {isVisibleAddUserModal && <AddUserModal type={'table'} refresh={() => getPermissionByTableId(id??"0")} visible={isVisibleAddUserModal} setVisible={setIsVisibleAddUserModal}/>}
-            {isVisibleAddFilialModal && <AddFilialModal type={'table'} refresh={() => getFilialPermissionByTableId(id??"0")} visible={isVisibleAddFilialModal} setVisible={setIsVisibleAddFilialModal}/>}
+            {isVisibleAddUserModal && <AddUserModal type={'row'} rowId={props.rowId} refresh={() => getPermissionByRowId(props.rowId)} visible={isVisibleAddUserModal} setVisible={setIsVisibleAddUserModal}/>}
+            {isVisibleAddFilialModal && <AddFilialModal rowId={props.rowId} type={'row'} refresh={() => getFilialPermissionByRowId(props.rowId)} visible={isVisibleAddFilialModal} setVisible={setIsVisibleAddFilialModal}/>}
             <Flex gap={'small'} vertical>
                 <Flex gap={'small'} vertical>
                     <Text>Права доступа пользователей</Text>
@@ -151,7 +151,7 @@ export const TableSettingsModal = (props: ModalProps) => {
                     <Table
                         columns={permissionsTableColumns}
                         dataSource={permissionsTableData}
-                        loading={isLoadingGetPermissionByTableId || isLoadingDeleteTablePermission}
+                        loading={isLoadingGetPermissionByRowId || isLoadingDeleteRowPermission}
                         bordered
                     />
                 </Flex>
@@ -162,7 +162,7 @@ export const TableSettingsModal = (props: ModalProps) => {
                     <Table
                         columns={permissionsFilialTableColumns}
                         dataSource={permissionsFilialTableData}
-                        loading={isLoadingGetFilialPermissionByTableId || isLoadingDeleteTableFilialPermission}
+                        loading={isLoadingGetFilialPermissionByRowId || isLoadingDeleteRowFilialPermission}
                         bordered
                     />
                 </Flex>
