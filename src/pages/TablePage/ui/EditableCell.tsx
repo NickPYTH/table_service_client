@@ -1,10 +1,11 @@
-import React, {useState} from 'react';
+import React, {useContext, useState} from 'react';
 import type {GetRef} from 'antd';
 import {Button, Checkbox, DatePicker, Flex, Form, Input, InputNumber, Tag} from 'antd';
 import {cellAPI} from "service/CellService";
 import {CellModel} from "entities/CellModel";
 import {CloseOutlined, SaveOutlined} from "@ant-design/icons";
 import dayjs from "dayjs";
+import {TableContext} from "pages/TablePage/ui/TablePage";
 
 type FormInstance<T> = GetRef<typeof Form<T>>;
 
@@ -43,6 +44,8 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
                                                                                 ...restProps
                                                                             }) => {
     // States
+    const tableContext = useContext(TableContext);
+
     const [editing, setEditing] = useState(false);
     const [prevCellState, setPrevCellState] = useState<CellModel|null>(null);
     const [cellValue, setCellValue] = useState<any>();
@@ -90,6 +93,12 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
                     updateCellValue({id: tmp.id, value: cellValue});
                 }
                 handleSave(copy);
+                // Отправляем изменения на сервер
+                if (tableContext?.ws) {
+                    let ws = tableContext.ws;
+                    ws.send("pipiska");
+                }
+                // -----
             } else console.log('Save failed');
         } catch (errInfo) {
             console.log('Save failed:', errInfo);

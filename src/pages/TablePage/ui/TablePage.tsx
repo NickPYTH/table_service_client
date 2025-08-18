@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {createContext, useEffect, useRef, useState} from 'react';
 import {TableModel} from "entities/TableModel";
 import {Button, Flex, Input, InputRef, Popconfirm, Space, Spin, Table, TableProps, Tag} from "antd";
 import {tableAPI} from "service/TableService";
@@ -53,9 +53,19 @@ function updateCellValueInArray(dataArray:any, targetId:any, newValue:any) {
 
 type DataIndex = keyof DataType;
 
+type TableContextType = {
+   ws: any|null;
+}
+
+export const TableContext = createContext<TableContextType | null>(null);
+
 const TablePage: React.FC = () => {
 
     // States
+    const [context, setContext] = useState<TableContextType>({
+        ws: null
+    });
+    const tblRef: Parameters<typeof Table>[0]['ref'] = React.useRef(null);
     let {id} = useParams();
     const [ws, setWs] = useState(null);
     const [wsAlive, setWsAlive] = useState(false);
@@ -175,6 +185,7 @@ const TablePage: React.FC = () => {
         socket.onopen = () => {
             console.log('WebSocket connected');
             setWsAlive(true);
+            setContext((prev: TableContextType) => ({...prev, ws: socket}));
         };
 
         socket.onmessage = (event) => {
@@ -389,7 +400,8 @@ const TablePage: React.FC = () => {
     // -----
 
     return (
-        <Flex vertical={true} gap={'small'} style={{padding: 5}}>
+        <TableContext.Provider value={context}>
+            <Flex vertical={true} gap={'small'} style={{padding: 5}}>
             {isVisibleColumnModal && <ColumnModal column={selectedColumn} refresh={() => getTableData(id ?? "0")} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
             {isVisibleTableSettingsModal && <TableSettingsModal visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
             <Flex align={'center'} justify={'space-between'}>
@@ -480,6 +492,7 @@ const TablePage: React.FC = () => {
                 <Spin size={'large'} style={{margin: 50}}/>
             }
         </Flex>
+        </TableContext.Provider>
     );
 };
 
