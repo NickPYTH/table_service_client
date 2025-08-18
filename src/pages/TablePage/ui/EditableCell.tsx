@@ -1,4 +1,4 @@
-import React, {useContext, useState} from 'react';
+import React, {useContext, useEffect, useState} from 'react';
 import type {GetRef} from 'antd';
 import {Button, Checkbox, DatePicker, Flex, Form, Input, InputNumber, Tag} from 'antd';
 import {cellAPI} from "service/CellService";
@@ -49,28 +49,46 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     const [editing, setEditing] = useState(false);
     const [prevCellState, setPrevCellState] = useState<CellModel|null>(null);
     const [cellValue, setCellValue] = useState<any>();
+    const [isCellLocked, setIsCellLocked] = useState<boolean>(false);
     // -----
 
     // Web requests
     const [updateCellValue, {
-        isSuccess: isUpdateCellValueSuccess,
-        isLoading: isUpdateCellValueLoading
     }] = cellAPI.usePatchMutation();
     // -----
 
     // Effects
-
+    useEffect(() => {
+        if (tableContext) {
+            if (record){
+                console.log(record[dataIndex].id)
+                if (tableContext.lockedCellsIds.find((id:number) => id === record[dataIndex].id)) {
+                    setIsCellLocked(true);
+                }
+            }
+        }
+    }, [tableContext]);
+    useEffect(() => {
+        if (editing){
+            // Отправляем изменения на сервер
+            if (tableContext?.ws) {
+                let ws = tableContext.ws;
+                ws.send(JSON.stringify({cell_id: prevCellState?.id, type: 'create'}));
+            }
+            // -----
+        }
+    }, [editing]);
     // -----
 
     // Handlers
     const toggleEdit = () => {
         setEditing(!editing);
         setPrevCellState(record[dataIndex]);
-        console.log(dataIndex, record, record[dataIndex])
         if (record[dataIndex].column.data_type == 'date' && record[dataIndex].value) setCellValue(dayjs(record[dataIndex].value, "YYYY-MM-DD"))
         else setCellValue(record[dataIndex].value);
     };
     const save = async () => {
+        if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove'}));
         try {
             toggleEdit();
             let tmp = {...prevCellState, value: cellValue};
@@ -93,18 +111,13 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
                     updateCellValue({id: tmp.id, value: cellValue});
                 }
                 handleSave(copy);
-                // Отправляем изменения на сервер
-                if (tableContext?.ws) {
-                    let ws = tableContext.ws;
-                    ws.send("pipiska");
-                }
-                // -----
             } else console.log('Save failed');
         } catch (errInfo) {
             console.log('Save failed:', errInfo);
         }
     };
     const cancel = () => {
+        if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove'}));
         toggleEdit();
     }
     // -----
@@ -112,7 +125,6 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     // Useful utils
     let childNode = children;
     // -----
-
     if (editable) {
         childNode = editing ? (
             <Flex gap={'small'} justify={'center'} style={{width: "97%", padding: 5 }}>
@@ -146,7 +158,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         ) : (
             <div
                 className="editable-cell-value-wrap"
-                style={{width: '100%', height: 24 }}
+                style={{width: '100%', height: 24, color: isCellLocked ? 'red': 'inherit' }}
                 onClick={toggleEdit}
             >
                 {record[dataIndex]?.column.data_type == "boolean" ?

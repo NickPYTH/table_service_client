@@ -55,6 +55,7 @@ type DataIndex = keyof DataType;
 
 type TableContextType = {
    ws: any|null;
+   lockedCellsIds: number[];
 }
 
 export const TableContext = createContext<TableContextType | null>(null);
@@ -63,7 +64,8 @@ const TablePage: React.FC = () => {
 
     // States
     const [context, setContext] = useState<TableContextType>({
-        ws: null
+        ws: null,
+        lockedCellsIds: [63,64],
     });
     const tblRef: Parameters<typeof Table>[0]['ref'] = React.useRef(null);
     let {id} = useParams();
@@ -225,11 +227,12 @@ const TablePage: React.FC = () => {
         socket.onopen = () => {
             console.log('WebSocket cell lock connected');
             setWsAlive(true);
+            setContext({...context, ws: socket});
         };
 
         socket.onmessage = (event) => {
             const message = JSON.parse(event.data);
-            console.log(message);
+            console.log('new locked cells ', message);
         };
 
         socket.onclose = () => {
