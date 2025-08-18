@@ -51,14 +51,14 @@ function updateCellValueInArray(dataArray:any, targetId:any, newValue:any) {
     return result;
 }
 
-
 type DataIndex = keyof DataType;
 
 const TablePage: React.FC = () => {
 
     // States
     let {id} = useParams();
-    const [ws, setWs] = useState(null);
+    const [wsCellsUpdate, setWsCellsUpdate] = useState(null);
+    const [wsCellLockUpdate, setWsCellLockUpdate] = useState(null);
     const [wsAlive, setWsAlive] = useState(false);
     const [title, setTitle] = useState<string | null>(null);
     const [isVisibleTableSettingsModal, setIsVisibleTableSettingsModal] = useState(false);
@@ -171,11 +171,11 @@ const TablePage: React.FC = () => {
         if (id) getTableData(id);
     }, []);
     useEffect(() => {
-        // Подключение к WebSocket
+        // Подключение к обновлению ячеек по WebSocket
         const socket = new WebSocket('ws://localhost:8000/ws/cell-updates/');
 
         socket.onopen = () => {
-            console.log('WebSocket connected');
+            console.log('WebSocket cell update connected');
             setWsAlive(true);
         };
 
@@ -192,17 +192,48 @@ const TablePage: React.FC = () => {
         };
 
         socket.onclose = () => {
-            console.log('WebSocket disconnected');
+            console.log('WebSocket cell update disconnected');
             setWsAlive(false);
         };
 
         socket.onerror = (error) => {
-            console.error('WebSocket error:', error);
+            console.error('WebSocket cell update error:', error);
             setWsAlive(false);
         };
 
         //@ts-ignore
-        setWs(socket);
+        setWsCellsUpdate(socket);
+
+        return () => {
+            socket.close();
+        };
+    }, []);
+    useEffect(() => {
+        // Подключение к обновлению ячеек по WebSocket
+        const socket = new WebSocket('ws://localhost:8000/ws/cell-lock-updates/');
+
+        socket.onopen = () => {
+            console.log('WebSocket cell lock connected');
+            setWsAlive(true);
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log(message);
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket cell lock disconnected');
+            setWsAlive(false);
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket cell lock error:', error);
+            setWsAlive(false);
+        };
+
+        //@ts-ignore
+        setWsCellLockUpdate(socket);
 
         return () => {
             socket.close();
