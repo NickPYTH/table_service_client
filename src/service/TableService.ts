@@ -25,7 +25,7 @@ export const tableAPI = createApi({
         }),
         create: build.mutation<TableModel, string>({
             query: (title) => ({
-                url: `table/`,
+                url: `tables/`,
                 method: 'POST',
                 body: {
                     title
