@@ -3,13 +3,20 @@ import React from "react";
 import {Result} from "antd";
 import {routeConfig} from "./routeConfig";
 import {Navbar} from "shared/component/Navbar";
+import {useSelector} from "react-redux";
+import {RootStateType} from "store/store";
 
 
 export const Router: React.FC = () => {
+
+    // Store
+    const currentUser = useSelector((state: RootStateType) => state.currentUser.user);
+    // -----
+
     return (
         <BrowserRouter>
             <Navbar />
-            <Routes>
+            {currentUser && <Routes>
                 {Object.values(routeConfig).map(({element, path}) => (
                     <Route
                         key={path}
@@ -25,6 +32,6 @@ export const Router: React.FC = () => {
                         subTitle="Извините, страницы на которую вы перешли не существует."
                     />}
                 />
-            </Routes>
+            </Routes>}
         </BrowserRouter>)
 };

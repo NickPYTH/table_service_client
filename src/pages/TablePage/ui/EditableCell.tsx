@@ -62,23 +62,23 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     // Effects
     useEffect(() => {
         if (tableContext) {
-            if (record){
-                if (tableContext.lockedCellsIds.find((id:number) => id == record[dataIndex].id)) {
-                    setIsCellLocked(true);
-                } else setIsCellLocked(false);
+            if (record && record[dataIndex]){
+                let lock:{user_id:number, cell_id: number}|undefined = tableContext.lockedCellsIds.find((lock:{user_id:number, cell_id: number}) => lock.cell_id == record[dataIndex].id);
+                if (lock) {
+                    if (lock.user_id == currentUser?.id) {
+                        setEditing(true);
+                        setPrevCellState(record[dataIndex]);
+                        if (record[dataIndex].column.data_type == 'date' && record[dataIndex].value) setCellValue(dayjs(record[dataIndex].value, "YYYY-MM-DD"))
+                        else setCellValue(record[dataIndex].value);
+                        setIsCellLocked(false);
+                    } else setIsCellLocked(true);
+                } else {
+                    setEditing(false);
+                    setIsCellLocked(false);
+                }
             }
         }
     }, [tableContext]);
-    useEffect(() => {
-        if (editing){
-            // Отправляем изменения на сервер
-            if (tableContext?.ws) {
-                let ws = tableContext.ws;
-                ws.send(JSON.stringify({cell_id: prevCellState?.id, type: 'create', user_id: currentUser?.id}));
-            }
-            // -----
-        }
-    }, [editing]);
     // -----
 
     // Handlers
@@ -87,6 +87,15 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         setPrevCellState(record[dataIndex]);
         if (record[dataIndex].column.data_type == 'date' && record[dataIndex].value) setCellValue(dayjs(record[dataIndex].value, "YYYY-MM-DD"))
         else setCellValue(record[dataIndex].value);
+
+        if (!editing) {
+            // Отправляем изменения на сервер
+            if (tableContext?.ws) {
+                let ws = tableContext.ws;
+                ws.send(JSON.stringify({cell_id: record[dataIndex]?.id, type: 'create', user_id: currentUser?.id}));
+            }
+            // -----
+        }
     };
     const save = async () => {
         if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove', user_id: currentUser?.id}));

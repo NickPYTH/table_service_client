@@ -21,6 +21,8 @@ import {
 } from "@ant-design/icons";
 import {TableSettingsModal} from "pages/TablePage/ui/TableSettingsModal";
 import {RowSettingsModal} from "pages/TablePage/ui/RowSettingsModal";
+import {useSelector} from "react-redux";
+import {RootStateType} from "store/store";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -55,12 +57,16 @@ type DataIndex = keyof DataType;
 
 type TableContextType = {
    ws: any|null;
-   lockedCellsIds: number[];
+   lockedCellsIds: {user_id: number, cell_id:number}[];
 }
 
 export const TableContext = createContext<TableContextType | null>(null);
 
 const TablePage: React.FC = () => {
+
+    // Store
+    const currentUser = useSelector((state: RootStateType) => state.currentUser.user);
+    // -----
 
     // States
     const [context, setContext] = useState<TableContextType>({
@@ -239,9 +245,12 @@ const TablePage: React.FC = () => {
         };
 
         socket.onmessage = (event) => {
-            const message:{entity: {cell: CellModel}} = JSON.parse(event.data);
-            console.log('new locked cells ', message);
-            setContext(prevState => ({...prevState, lockedCellsIds: context.lockedCellsIds.concat([message.entity.cell.id])}));
+            const message:{entity: {cell: CellModel}, type: string} = JSON.parse(event.data);
+            console.log('new locked cells ', message, currentUser);
+            if (message.type == 'cell_lock_update')
+                setContext(prevState => ({...prevState, lockedCellsIds: prevState.lockedCellsIds.concat([{user_id: currentUser ? currentUser?.id : 999, cell_id: message.entity.cell.id}])}));
+            else if (message.type == 'cell_lock_remove')
+                setContext(prevState => ({...prevState, lockedCellsIds: prevState.lockedCellsIds.filter((lock) => lock.cell_id != message.entity.cell.id)}));
         };
         socket.onclose = () => {
             console.log('WebSocket cell lock disconnected');
