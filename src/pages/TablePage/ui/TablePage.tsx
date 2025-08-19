@@ -65,7 +65,7 @@ const TablePage: React.FC = () => {
     // States
     const [context, setContext] = useState<TableContextType>({
         ws: null,
-        lockedCellsIds: [63,64],
+        lockedCellsIds: [],
     });
     const tblRef: Parameters<typeof Table>[0]['ref'] = React.useRef(null);
     let {id} = useParams();
@@ -168,7 +168,6 @@ const TablePage: React.FC = () => {
     }] = tableAPI.usePatchMutation();
     const [deleteTable, {
         isSuccess: isTableDeleteSuccess,
-        isLoading: isTableDeleteLoading
     }] = tableAPI.useDeleteMutation();
     const [createRow, {
         isSuccess: isCreateRowSuccess,
@@ -176,11 +175,20 @@ const TablePage: React.FC = () => {
     }] = rowAPI.useCreateMutation();
     const [deleteRow, {
     }] = rowAPI.useDeleteMutation();
+    const [getLockedCells, {
+        data: lockedCell,
+    }] = tableAPI.useGetLockedCellsMutation();
+    const [removeLocks, {
+        isSuccess: isRemoveLocksSuccess,
+    }] = tableAPI.useRemoveLocksMutation();
     // -----
 
     // Effects
     useEffect(() => {
-        if (id) getTableData(id);
+        if (id) {
+            getTableData(id);
+            getLockedCells(id);
+        }
     }, []);
     useEffect(() => {
         // Подключение к обновлению ячеек по WebSocket
@@ -231,10 +239,10 @@ const TablePage: React.FC = () => {
         };
 
         socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+            const message:{entity: {cell: CellModel}} = JSON.parse(event.data);
             console.log('new locked cells ', message);
+            setContext(prevState => ({...prevState, lockedCellsIds: context.lockedCellsIds.concat([message.entity.cell.id])}));
         };
-
         socket.onclose = () => {
             console.log('WebSocket cell lock disconnected');
             setWsAlive(false);
@@ -336,6 +344,9 @@ const TablePage: React.FC = () => {
             }
         }
     }, [tableData]);
+    useEffect(() => {
+        if (lockedCell) setContext({...context, lockedCellsIds: lockedCell});
+    }, [lockedCell])
     useEffect(() => !isVisibleColumnModal ? setSelectedColumn(null) : ()=>{}, [isVisibleColumnModal])
     useEffect(() => {
         if (patchedTable) {
@@ -352,6 +363,9 @@ const TablePage: React.FC = () => {
             navigate("/not_found")
         }
     }, [isErrorTableData]);
+    useEffect(() => {
+        if (isRemoveLocksSuccess) setContext({...context, lockedCellsIds: []});
+    }, [isRemoveLocksSuccess])
     // -----
 
     // Handlers
@@ -379,6 +393,9 @@ const TablePage: React.FC = () => {
     const deleteTableHandler = () => {
         if(id) deleteTable(id);
     };
+    const removeLocksHandler = () => {
+        if (id) removeLocks(id);
+    }
     // -----
 
     // Useful utils
@@ -499,7 +516,7 @@ const TablePage: React.FC = () => {
                             Удалить таблицу
                         </Button>
                     </Popconfirm>
-                    <Button danger type={'primary'} style={{width: 200}}>Завершить редактирование</Button>
+                    <Button danger type={'primary'} style={{width: 200}} onClick={removeLocksHandler}>Завершить редактирование</Button>
                 </Flex>
             </Flex>
             {editableColumns ?

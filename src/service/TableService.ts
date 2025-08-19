@@ -33,6 +33,20 @@ export const tableAPI = createApi({
             }),
             invalidatesTags: ['table']
         }),
+        getLockedCells: build.mutation<number[], string>({
+            query: (table_id) => ({
+                url: `table/${table_id}/locks/`,
+                method: 'GET'
+            }),
+            invalidatesTags: ['table']
+        }),
+        removeLocks: build.mutation<{success: boolean}, string>({
+            query: (table_id) => ({
+                url: `table/${table_id}/remove_locks/`,
+                method: 'GET'
+            }),
+            invalidatesTags: ['table']
+        }),
         patch: build.mutation<TableModel, {id: string, title: string}>({
             query: ({id, title}) => ({
                 url: `table/${id}/`,

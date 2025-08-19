@@ -1,11 +1,12 @@
 import {createSlice} from "@reduxjs/toolkit";
+import {UserModel} from "entities/UserModel";
 
 export type CurrentUserModelStateType = {
-    user: any
+    user: UserModel | null;
 }
 
 const initialState: CurrentUserModelStateType = {
-    user: {}
+    user: null
 }
 
 const userSlice = createSlice({

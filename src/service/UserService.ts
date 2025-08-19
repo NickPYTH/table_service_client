@@ -5,7 +5,7 @@ import {UserModel} from "entities/UserModel";
 export const userAPI = createApi({
     reducerPath: 'userAPI',
     baseQuery: fetchBaseQuery({
-        baseUrl: `${host}/api/users`,
+        baseUrl: `${host}/api`,
     }),
     tagTypes: ['user'],
     endpoints: (build) => ({
@@ -18,14 +18,14 @@ export const userAPI = createApi({
         }),
         getAllByTableId: build.mutation<UserModel[], string>({
             query: (tableId) => ({
-                url: `/?table_id=${tableId}`,
+                url: `/users/?table_id=${tableId}`,
                 method: 'GET',
             }),
             invalidatesTags: ['user']
         }),
         getAllByRowId: build.mutation<UserModel[], number>({
             query: (rowId) => ({
-                url: `/?row_id=${rowId}`,
+                url: `/users/?row_id=${rowId}`,
                 method: 'GET',
             }),
             invalidatesTags: ['user']

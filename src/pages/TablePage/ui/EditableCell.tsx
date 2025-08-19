@@ -6,6 +6,8 @@ import {CellModel} from "entities/CellModel";
 import {CloseOutlined, SaveOutlined} from "@ant-design/icons";
 import dayjs from "dayjs";
 import {TableContext} from "pages/TablePage/ui/TablePage";
+import {useSelector} from "react-redux";
+import {RootStateType} from "store/store";
 
 type FormInstance<T> = GetRef<typeof Form<T>>;
 
@@ -44,8 +46,8 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
                                                                                 ...restProps
                                                                             }) => {
     // States
+    const currentUser = useSelector((state: RootStateType) => state.currentUser.user);
     const tableContext = useContext(TableContext);
-
     const [editing, setEditing] = useState(false);
     const [prevCellState, setPrevCellState] = useState<CellModel|null>(null);
     const [cellValue, setCellValue] = useState<any>();
@@ -61,10 +63,9 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     useEffect(() => {
         if (tableContext) {
             if (record){
-                console.log(record[dataIndex].id)
-                if (tableContext.lockedCellsIds.find((id:number) => id === record[dataIndex].id)) {
+                if (tableContext.lockedCellsIds.find((id:number) => id == record[dataIndex].id)) {
                     setIsCellLocked(true);
-                }
+                } else setIsCellLocked(false);
             }
         }
     }, [tableContext]);
@@ -73,7 +74,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
             // Отправляем изменения на сервер
             if (tableContext?.ws) {
                 let ws = tableContext.ws;
-                ws.send(JSON.stringify({cell_id: prevCellState?.id, type: 'create'}));
+                ws.send(JSON.stringify({cell_id: prevCellState?.id, type: 'create', user_id: currentUser?.id}));
             }
             // -----
         }
@@ -88,7 +89,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         else setCellValue(record[dataIndex].value);
     };
     const save = async () => {
-        if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove'}));
+        if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove', user_id: currentUser?.id}));
         try {
             toggleEdit();
             let tmp = {...prevCellState, value: cellValue};
@@ -117,7 +118,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         }
     };
     const cancel = () => {
-        if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove'}));
+        if (prevCellState) tableContext?.ws.send(JSON.stringify({cell_id: prevCellState.id, type: 'remove', user_id: currentUser?.id}));
         toggleEdit();
     }
     // -----
@@ -126,7 +127,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
     let childNode = children;
     // -----
     if (editable) {
-        childNode = editing ? (
+        childNode = (editing && !isCellLocked) ? (
             <Flex gap={'small'} justify={'center'} style={{width: "97%", padding: 5 }}>
                 {prevCellState?.column.data_type == "integer" ?
                     <InputNumber precision={0} style={{width: '100%'}} value={cellValue}
@@ -158,7 +159,7 @@ export const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> 
         ) : (
             <div
                 className="editable-cell-value-wrap"
-                style={{width: '100%', height: 24, color: isCellLocked ? 'red': 'inherit' }}
+                style={{width: '100%', height: 24, background: isCellLocked ? '#f0f0f0': 'inherit' }}
                 onClick={toggleEdit}
             >
                 {record[dataIndex]?.column.data_type == "boolean" ?
