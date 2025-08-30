@@ -4,10 +4,12 @@ import {tableAPI} from "service/TableService";
 import {useNavigate} from "react-router-dom";
 import {InboxOutlined} from "@ant-design/icons";
 import Dragger from "antd/es/upload/Dragger";
+import {host} from "shared/config/constants";
 
 type ModalProps = {
     visible: boolean,
     setVisible: Function,
+    refresh: Function,
 }
 
 export const ImportTableModal = (props: ModalProps) => {
@@ -16,23 +18,15 @@ export const ImportTableModal = (props: ModalProps) => {
     const [tableName, setTableName] = useState("");
     const [file, setFile] = useState<any | null>(null);
     const navigate = useNavigate();
+    const [loading ,setIsLoading] = useState(false);
     // -----
 
     // Web requests
-    const [createTable, {
-        data: createdTable,
-        isSuccess: isCreateTableSuccess,
-        isLoading: isCreateTableLoading
-    }] = tableAPI.useCreateMutation();
+
     // -----
 
     // Effects
-    useEffect(() => {
-        if (isCreateTableSuccess && createdTable) {
-            let tableId = createdTable.id;
-            navigate(`${tableId}`);
-        }
-    }, [isCreateTableSuccess, createdTable]);
+
     // -----
 
     // Handlers
@@ -52,11 +46,20 @@ export const ImportTableModal = (props: ModalProps) => {
                 redirect: "follow"
             };
 
+            setIsLoading(true);
+
             //@ts-ignore
-            fetch("http://localhost:8000/api/file/upload/", requestOptions)
+            fetch(`${host}/api/file/upload/`, requestOptions)
                 .then((response) => response.text())
-                .then((result) => console.log(result))
-                .catch((error) => console.error(error));
+                .then((result) => {
+                    console.log(result);
+                    props.setVisible(false);
+                    props.refresh();
+                })
+                .catch((error) => {
+                    console.error(error);
+                    setIsLoading(false);
+                });
         }
     }
     // -----
@@ -80,9 +83,9 @@ export const ImportTableModal = (props: ModalProps) => {
                onOk={importDataHandler}
                onCancel={() => props.setVisible(false)}
                okText={"Создать"}
+               loading={loading}
+               confirmLoading={loading}
                width={'500px'}
-               loading={isCreateTableLoading}
-               confirmLoading={isCreateTableLoading}
         >
             <Flex gap={'small'} vertical>
                 <Flex align={'center'} gap={'small'} >

@@ -7,3 +7,6 @@ if (document.location.host.split(':')[1]) {
         host += ':8000'
 } else
     host += ''
+
+//export const wsHost = 'ws://test-vapp-03.sgp.ru:8004';
+export const wsHost = 'ws://localhost';

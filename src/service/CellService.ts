@@ -14,8 +14,15 @@ export const cellAPI = createApi({
                 url: `/${id}/`,
                 method: 'PATCH',
                 body: {
-                    write_value: value
+                    value
                 }
+            }),
+            invalidatesTags: ['cell']
+        }),
+        getAllByTableId: build.mutation<{ count: number, next: string, previous: string, results: CellModel[] }, { tableId: string, page: number, limit: number }>({
+            query: ({tableId, page, limit}) => ({
+                url: `/?table=${tableId}&page=${page}&limit=${limit}`,
+                method: 'GET'
             }),
             invalidatesTags: ['cell']
         }),

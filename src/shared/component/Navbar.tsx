@@ -59,6 +59,7 @@ export const Navbar = () => {
     // -----
 
     return (<>
+            <div style={{position: 'absolute', right: 5, top: 10}}>{`${currentUser?.last_name} ${currentUser?.first_name}`}</div>
             <Menu disabled={isCurrentUserLoading} onClick={onClick} selectedKeys={[current]} mode="horizontal" items={items}/>
         </>
     );

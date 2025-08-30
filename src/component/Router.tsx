@@ -5,6 +5,7 @@ import {routeConfig} from "./routeConfig";
 import {Navbar} from "shared/component/Navbar";
 import {useSelector} from "react-redux";
 import {RootStateType} from "store/store";
+import {host} from "shared/config/constants";
 
 
 export const Router: React.FC = () => {

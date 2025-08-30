@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {TableModel} from "entities/TableModel";
-import {Button, Flex, Input, InputRef, Space, Table, TableProps, UploadProps} from "antd";
+import {Button, Flex, Input, InputRef, Space, Table, TableProps} from "antd";
 import {tableAPI} from "service/TableService";
 import dayjs from "dayjs";
 import {ColumnType} from 'antd/es/table';
@@ -10,7 +10,7 @@ import {CustomDateFilter} from 'shared/component/CustomDateFilter';
 import {useNavigate} from "react-router-dom";
 import {CreateTableModal} from "./CreateTableModal";
 import {ImportTableModal} from "pages/TablesListPage/ui/ImportTableModal";
-import {host} from "shared/config/constants";
+import {host, wsHost} from "shared/config/constants";
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -35,28 +35,28 @@ const TablesListPage: React.FC = () => {
         isLoading: isTablesLoading
     }] = tableAPI.useGetAllMutation();
     // -----
-
+    console.log(host)
     // Effects
     useEffect(() => {
+
         // Подключение к WebSocket
-        const socket = new WebSocket('ws://localhost:8000/ws/table-updates/');
+        const socket = new WebSocket(`${wsHost}/api/ws/table-updates/`);
 
         socket.onopen = () => {
             console.log('WebSocket connected');
         };
 
         socket.onmessage = (event) => {
-            const message: {id: number, entity: TableModel, type: string} = JSON.parse(event.data);
+            const message: { id: number, entity: TableModel, type: string } = JSON.parse(event.data);
             if (message.type == 'table_update') {
-                setTables((prev:TableModel[]) => {
-                    return prev.map((table:TableModel) => {
+                setTables((prev: TableModel[]) => {
+                    return prev.map((table: TableModel) => {
                         if (table.id == message.id) return message.entity;
                         else return table;
                     });
                 })
-            }
-            else if (message.type == 'table_create') {
-                setTables((prev:TableModel[]) => prev.concat(message.entity));
+            } else if (message.type == 'table_create') {
+                setTables((prev: TableModel[]) => prev.concat(message.entity));
             }
         };
 
@@ -195,7 +195,7 @@ const TablesListPage: React.FC = () => {
             title: 'Дата и время создания',
             dataIndex: 'created_at',
             key: 'created_at',
-            render: ((value: string, record: TableModel) => (<div>{dayjs(record.created_at).format("DD.MM.YYYY mm:ss")}</div>)),
+            render: ((value: string, record: TableModel) => (<div>{dayjs(record.created_at).format("DD.MM.YYYY HH:mm")}</div>)),
             filterDropdown: CustomDateFilter,
             onFilter: (value: any, record: TableModel) => {
                 const recordDate = dayjs(record.created_at);
@@ -221,7 +221,7 @@ const TablesListPage: React.FC = () => {
 
     return (
         <Flex vertical={true} gap={'small'} style={{padding: 5}}>
-            {isVisibleImportTableModal && <ImportTableModal visible={isVisibleImportTableModal} setVisible={setIsVisibleImportTableModal}/>}
+            {isVisibleImportTableModal && <ImportTableModal refresh={() => getTables()} visible={isVisibleImportTableModal} setVisible={setIsVisibleImportTableModal}/>}
             {isVisibleCreateTableModal && <CreateTableModal visible={isVisibleCreateTableModal} setVisible={setIsVisibleCreateTableModal}/>}
             <Flex justify={'space-between'} style={{marginTop: 10, marginLeft: 10}}>
                 <Button type={'primary'} style={{width: 140}} onClick={() => setIsVisibleCreateTableModal(true)}>Создать новую</Button>

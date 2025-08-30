@@ -17,6 +17,20 @@ export const columnAPI = createApi({
             }),
             invalidatesTags: ['column']
         }),
+        getAllByTableId: build.mutation<ColumnModel[], string>({
+            query: (tableId) => ({
+                url: `/?table=${tableId}`,
+                method: 'GET',
+            }),
+            invalidatesTags: ['column']
+        }),
+        get: build.mutation<ColumnModel, number>({
+            query: (id) => ({
+                url: `/${id}/`,
+                method: 'GET',
+            }),
+            invalidatesTags: ['column']
+        }),
         patch: build.mutation<ColumnModel, { id: number, body: ColumnModel }>({
             query: ({id, body}) => ({
                 url: `/${id}/`,

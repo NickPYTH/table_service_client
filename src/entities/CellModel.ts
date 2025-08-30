@@ -1,9 +1,6 @@
-import {RowModel} from "entities/RowModel";
-import {ColumnModel} from "entities/ColumnModel";
-
 export type CellModel = {
     id: number;
-    row: RowModel;
-    column: ColumnModel;
+    row: number;
+    column: number;
     value: "string";
 }
