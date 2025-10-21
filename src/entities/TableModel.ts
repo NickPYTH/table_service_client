@@ -7,4 +7,6 @@ export type TableModel = {
     owner: UserModel;
     created_at: number;
     cells: CellModel[] | null;
+    with_cell_confirm: boolean;
+    with_cell_logging: boolean;
 }

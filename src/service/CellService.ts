@@ -19,9 +19,9 @@ export const cellAPI = createApi({
             }),
             invalidatesTags: ['cell']
         }),
-        getAllByTableId: build.mutation<{ count: number, next: string, previous: string, results: CellModel[] }, { tableId: string, page: number, limit: number }>({
-            query: ({tableId, page, limit}) => ({
-                url: `/?table=${tableId}&page=${page}&limit=${limit}`,
+        getAllByTableId: build.mutation<{ count: number, next: string, previous: string, results: CellModel[] }, { tableId: string, page: number, limit: number, search?: string }>({
+            query: ({tableId, page, limit, search}) => ({
+                url: search ? `/?table=${tableId}&page=${page}&limit=${limit}&search=${search}` : `/?table=${tableId}&page=${page}&limit=${limit}`,
                 method: 'GET'
             }),
             invalidatesTags: ['cell']

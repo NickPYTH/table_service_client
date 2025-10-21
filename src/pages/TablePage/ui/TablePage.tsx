@@ -1,52 +1,43 @@
-import React, {createContext, useEffect, useRef, useState} from 'react';
-import {TableModel} from "entities/TableModel";
-import {Button, Flex, GetProp, Input, InputRef, Popconfirm, Space, Table, TableProps, Tag} from "antd";
+import React, {createContext, useEffect, useState} from 'react';
+import {Badge, Button, Flex, Input, Popconfirm, Tag} from "antd";
 import {tableAPI} from "service/TableService";
-import {FilterConfirmProps, SorterResult} from 'antd/es/table/interface';
 import {useNavigate, useParams} from "react-router-dom";
 import {CellModel} from "entities/CellModel";
 import {ColumnModel} from "entities/ColumnModel";
-import {ColumnModal} from "pages/TablePage/ui/ColumnModal";
+import {ColumnSettingsModal} from "pages/TablePage/ui/ColumnSettings/ColumnSettingsModal";
 import {rowAPI} from "service/RowService";
-import {EditableCell, EditableRow} from "pages/TablePage/ui/EditableCell";
-import {ColumnType} from "antd/es/table";
 import {
+    ArrowLeftOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
     CloseOutlined,
-    DeleteColumnOutlined,
     DeleteRowOutlined,
     EditOutlined,
+    MessageOutlined,
     SaveOutlined,
     SearchOutlined,
-    SettingOutlined,
-    ShareAltOutlined
+    SettingOutlined
 } from "@ant-design/icons";
-import {TableSettingsModal} from "pages/TablePage/ui/TableSettingsModal";
-import {RowSettingsModal} from "pages/TablePage/ui/RowSettingsModal";
+import {RowSettingsModal} from "pages/TablePage/ui/RowSettings/RowSettingsModal";
 import {useSelector} from "react-redux";
 import {RootStateType} from "store/store";
 import {host, wsHost} from "shared/config/constants";
 import {ImportRowsModal} from "pages/TablePage/ui/ImportRowsModal";
-import {cellAPI} from "service/CellService";
 import {columnAPI} from "service/ColumnService";
 import {UserModel} from "entities/UserModel";
-
-
-export interface DataType extends TableModel {
-    key: React.Key;
-    rowId: number;
-    children?: any;
-}
-
-type TablePaginationConfig = Exclude<GetProp<TableProps, 'pagination'>, boolean>;
-
-interface TableParams {
-    pagination?: TablePaginationConfig;
-    sortField?: SorterResult<any>['field'];
-    sortOrder?: SorterResult<any>['order'];
-    filters?: Parameters<GetProp<TableProps, 'onChange'>>[1];
-}
+import {TableSettingsModal} from "pages/TablePage/ui/TableSettings/TableSettingsModal";
+import {tablepermissionsAPI} from "service/TablePermissionsService";
+import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {TablePermissionsModel} from "entities/TablePermissionsModel";
+import {RowModel} from "entities/RowModel";
+import {CoreGrid} from "pages/TablePage/ui/Grid/CoreGrid";
+import {GridColDef, GridRowId} from "@mui/x-data-grid-premium";
+import {Cell} from "pages/TablePage/ui/Grid/Cell";
+import {CoreChat} from "pages/TablePage/ui/Chat/CoreChat";
+import {useNotification} from "app/providers/NotificationProvider/ui/NotificationProvider";
+import {MessageModel} from "entities/MessageModel";
+import {rowPermissionsAPI} from "service/RowPermissionsService";
+import {formatDate, isValidDateString} from "shared/config/utils";
 
 function updateCellValueInArray(dataArray: any, targetId: any, newValue: any) {
     // Создаем копию массива, чтобы не мутировать исходные данные
@@ -69,158 +60,68 @@ function updateCellValueInArray(dataArray: any, targetId: any, newValue: any) {
     });
 
     return result;
-}
+};
 
-type DataIndex = keyof DataType;
+export type DataRowModel = {
+    id: GridRowId;
+    order: number;
+};
 
-type TableContextType = {
-    ws: any | null;
+export type TableContextType = {
+    owner: UserModel | null,
+    ws: WebSocket | null;
+    demonWS: WebSocket | null;
     lockedCellsIds: { user_id: number, cell_id: number }[];
-}
+    rowPermissions: RowPermissionsModel[] | null;
+    tablePermission: TablePermissionsModel | null;
+    rows: DataRowModel[];
+    columns: GridColDef[];
+    pageSize: number;
+    refresh: Function;
+
+    // Параметры модалки по настройке колонок
+    setSelectedColumnId: (id: number) => void;
+    setIsVisibleColumnSettingsModal: (isVisible: boolean) => void;
+    // -----
+
+    // Параметры модалки по настройке строк
+    setSelectedRowId: (id: number) => void;
+    setIsVisibleRowSettingsModal: (isVisible: boolean) => void;
+    // -----
+
+    // Данные о чате
+    newMessages: MessageModel[];
+    unreadMessageCount: number;
+    // -----
+
+};
 
 export const TableContext = createContext<TableContextType | null>(null);
 
-//@ts-ignore
-const TableComponent = ({editableColumns, baseColumns, rows, isTableDataLoading, tableParams, components, handleTableChange}) => {
-    console.log('render')
-    return (
-        <Table<DataType>
-            sticky
-            scroll={{x: editableColumns?.concat(baseColumns).length * 300}}
-            rowClassName={() => 'editable-row'}
-            columns={editableColumns?.concat(baseColumns)}
-            dataSource={rows.sort((a: any, b: any) => a.rowId - b.rowId)}
-            loading={isTableDataLoading}
-            bordered
-            pagination={tableParams.pagination}
-            components={components}
-            onChange={handleTableChange}
-        />
-    )
-};
-
-//@ts-ignore
-const MemoizedTable = React.memo(TableComponent);
-
 const TablePage: React.FC = () => {
+
+    // Notification context
+    const notification = useNotification();
+    // -----
+
+    // Params
+    let {id} = useParams();
+    // -----
+
+    // Navigation
+    const navigate = useNavigate();
+    // -----
 
     // Store
     const currentUser = useSelector((state: RootStateType) => state.currentUser.user);
     // -----
 
-    // States
-    const [context, setContext] = useState<TableContextType>({
-        ws: null,
-        lockedCellsIds: [],
-    });
-    const tblRef: Parameters<typeof Table>[0]['ref'] = React.useRef(null);
-    let {id} = useParams();
-    const [wsCellsUpdate, setWsCellsUpdate] = useState(null);
-    const [wsCellLockUpdate, setWsCellLockUpdate] = useState(null);
-    const [wsAlive, setWsAlive] = useState(false);
-    const [title, setTitle] = useState<string | null>(null);
-    const [isVisibleTableSettingsModal, setIsVisibleTableSettingsModal] = useState(false);
-    const [isTitleEditMode, setIsTitleEditMode] = useState(false);
-    const [isVisibleImportRowModal, setIsVisibleImportRowModal] = useState(false);
-    const [editTitle, setEditTitle] = useState<string | null>(null);
-    const [owner, setOwner] = useState<string | null>(null);
-    const [columns, setColumns] = useState<TableProps<any>['columns'] | null>(null);
-    const [rows, setRows] = useState<any[]>([]);
-    const [isVisibleColumnModal, setIsVisibleColumnModal] = useState(false);
-    const [isVisibleRowModal, setIsVisibleRowModal] = useState(false);
-    const [selectedColumn, setSelectedColumn] = useState<ColumnModel | null>(null);
-    const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
-    const searchInput = useRef<InputRef>(null);
-    const [tableParams, setTableParams] = useState<TableParams>({
-        pagination: {
-            current: 1,
-        },
-    });
-    const [pageSize, setPageSize] = useState(100);
-    // -----
-
-    // For search
-    const getColumnSearchProps = (dataIndex: any): ColumnType<any> => ({
-        filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters, close}) => (
-            <div style={{padding: 8}} onKeyDown={(e) => e.stopPropagation()}>
-                <Input
-                    ref={searchInput}
-                    placeholder={`Поиск`}
-                    value={selectedKeys[0]}
-                    onChange={(e: any) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-                    onPressEnter={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
-                    style={{marginBottom: 8, display: 'block'}}
-                />
-                <Space>
-                    <Button
-                        type="primary"
-                        onClick={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
-                        icon={<SearchOutlined/>}
-                        size="small"
-                        style={{width: 90}}
-                    >
-                        Поиск
-                    </Button>
-                    <Button
-                        onClick={() => clearFilters && handleReset(clearFilters)}
-                        size="small"
-                        style={{width: 90}}
-                    >
-                        Сбросить
-                    </Button>
-                    <Button
-                        type="link"
-                        size="small"
-                        onClick={() => {
-                            close();
-                        }}
-                    >
-                        Закрыть
-                    </Button>
-                </Space>
-            </div>
-        ),
-        filterIcon: (filtered: boolean) => (
-            <Button size={'small'} icon={<SearchOutlined style={{color: filtered ? '#1677ff' : undefined}}/>}/>
-        ),
-        onFilter: (value, record) => {
-            if (record[dataIndex]?.value)
-                try {
-                    return record[dataIndex].value
-                        .toString()
-                        .toLowerCase()
-                        .includes((value as string).toLowerCase())
-                } catch (e) {
-                    return !!record.children.find((child: any) => child[dataIndex].value
-                        .toString()
-                        .toLowerCase()
-                        .includes((value as string).toLowerCase()));
-                }
-        },
-        onFilterDropdownOpenChange: (visible) => {
-            if (visible) {
-                setTimeout(() => searchInput.current?.select(), 100);
-            }
-        },
-        render: (text) => {
-            return (<div>{text?.value}</div>)
-        }
-    });
-    //
-
     // Web requests
-    const [getTableData, {
-        data: tableData,
-        isError: isErrorTableData,
-        isLoading: isTableDataLoading
-    }] = cellAPI.useGetAllByTableIdMutation();
     const [getTableInfo, {
         data: tableInfo,
-        isLoading: isTableInfoLoading
     }] = tableAPI.useGetMutation();
     const [getTableColumns, {
-        data: tableColumns,
-        isLoading: isTableColumnsLoading
+        data: columnsFromRequest,
     }] = columnAPI.useGetAllByTableIdMutation();
     const [patchTable, {
         data: patchedTable,
@@ -234,26 +135,82 @@ const TablePage: React.FC = () => {
         isSuccess: isCreateRowSuccess,
         isLoading: isCreateRowLoading
     }] = rowAPI.useCreateMutation();
-    const [deleteRow, {}] = rowAPI.useDeleteMutation();
+    const [getRowsByTableId, {
+        data: tableData,
+        isLoading: isTableDataLoading,
+    }] = rowAPI.useGetAllByTableIdMutation();
     const [getLockedCells, {
         data: lockedCell,
     }] = tableAPI.useGetLockedCellsMutation();
     const [removeLocks, {
         isSuccess: isRemoveLocksSuccess,
     }] = tableAPI.useRemoveLocksMutation();
-    const [deleteColumn, {
-        isSuccess: isColumnDeleteSuccess,
-    }] = columnAPI.useDeleteMutation();
+    const [getTablePermission, {
+        data: tablePermission,
+    }] = tablepermissionsAPI.useGetByTableIdAndUserIdMutation();
+    const [deleteRow, {
+        isSuccess: isDeleteRowSuccess,
+    }] = rowAPI.useDeleteMutation();
+    const [getRowPermissions, {
+        data: rowsPermissionsFromRequest,
+    }] = rowPermissionsAPI.useGetAllByUserIdMutation();
+    // -----
+
+    // States
+    const [wsCellsUpdate, setWsCellsUpdate] = useState<WebSocket | null>(null);
+    const [wsCellLocksUpdate, setWsCellLocksUpdate] = useState<WebSocket | null>(null);
+    const [wsDemon, setWsDemon] = useState<WebSocket | null>(null);
+    const [wsAlive, setWsAlive] = useState(false);
+    const [title, setTitle] = useState<string | null>(null);
+    const [isVisibleTableSettingsModal, setIsVisibleTableSettingsModal] = useState(false);
+    const [isTitleEditMode, setIsTitleEditMode] = useState(false);
+    const [isVisibleImportRowModal, setIsVisibleImportRowModal] = useState(false);
+    const [editTitle, setEditTitle] = useState<string | null>(null);
+    const [isVisibleColumnModal, setIsVisibleColumnModal] = useState(false);
+    const [isVisibleRowModal, setIsVisibleRowModal] = useState(false);
+    const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
+    const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
+    const [searchText, setSearchText] = useState("");
+    const [isTableOwner, setIsTableOwner] = useState(false);
+    const [context, setContext] = useState<TableContextType>({
+        owner: null,
+        ws: null,
+        demonWS: null,
+        lockedCellsIds: [],
+        rowPermissions: null,
+        tablePermission: null,
+        rows: [],
+        columns: [],
+        pageSize: 50,
+        setIsVisibleColumnSettingsModal: setIsVisibleColumnModal,
+        refresh: getRowsByTableId,
+        setSelectedColumnId: setSelectedColumnId,
+        setIsVisibleRowSettingsModal: setIsVisibleRowModal,
+        setSelectedRowId: setSelectedRowId,
+        newMessages: [],
+        unreadMessageCount: 0
+    });
+    const [isVisibleChat, setIsVisibleChat] = useState(false);
     // -----
 
     // Effects
     useEffect(() => {
         if (id) {
+            // Индикация непрочитанных сообщений
+            let unreadMessageCount = localStorage.getItem(`unread_message_count_${id}`);
+            setContext(prev => ({...prev, unreadMessageCount: unreadMessageCount ? parseInt(unreadMessageCount) : 0}));
+            // -----
             getTableInfo(id);
-            getTableColumns(id);
             getLockedCells(id);
+            if (currentUser) {
+                getTablePermission({table_id: id, user_id: currentUser.id});
+            }
         }
     }, []);
+    useEffect(() => {
+        if (tablePermission)
+            setContext(prevState => ({...prevState, tablePermission: tablePermission[0]}));
+    }, [tablePermission]);
     useEffect(() => {
         // Подключение к обновлению ячеек по WebSocket
         const socket = new WebSocket(`${wsHost}/ws/cell-updates/`);
@@ -266,12 +223,10 @@ const TablePage: React.FC = () => {
         socket.onmessage = (event) => {
             const message: { id: number, entity: CellModel, type: string } = JSON.parse(event.data);
             if (message.type == 'cell_update') {
-                setRows((prev: any[]) => {
-                    let newState = JSON.parse(JSON.stringify(prev));
-                    const updatedData = updateCellValueInArray(newState, message.id, message.entity.value);
-                    return updatedData;
-                })
-
+                setContext((prev: TableContextType) => {
+                    const updatedRows = updateCellValueInArray(prev.rows, message.id, message.entity.value);
+                    return {...prev, rows: updatedRows};
+                });
             }
         };
 
@@ -285,7 +240,6 @@ const TablePage: React.FC = () => {
             setWsAlive(false);
         };
 
-        //@ts-ignore
         setWsCellsUpdate(socket);
 
         return () => {
@@ -299,16 +253,20 @@ const TablePage: React.FC = () => {
         socket.onopen = () => {
             console.log('WebSocket cell lock connected');
             setWsAlive(true);
-            setContext({...context, ws: socket});
+            setContext(prevState => ({...prevState, ws: socket}));
         };
 
         socket.onmessage = (event) => {
             const message: { entity: { cell: CellModel, user: UserModel }, type: string } = JSON.parse(event.data);
             if (message.type == 'cell_lock_update')
-                setContext(prevState => ({...prevState, lockedCellsIds: prevState.lockedCellsIds.concat([{user_id: message.entity.user.id, cell_id: message.entity.cell.id}])}));
+                setContext(prevState => ({
+                    ...prevState,
+                    lockedCellsIds: prevState.lockedCellsIds.filter((lockedCell) => lockedCell.user_id != currentUser?.id).concat([{user_id: message.entity.user.id, cell_id: message.entity.cell.id}])
+                }));
             else if (message.type == 'cell_lock_remove')
                 setContext(prevState => ({...prevState, lockedCellsIds: prevState.lockedCellsIds.filter((lock) => lock.cell_id != message.entity.cell.id)}));
         };
+
         socket.onclose = () => {
             console.log('WebSocket cell lock disconnected');
             setWsAlive(false);
@@ -317,123 +275,181 @@ const TablePage: React.FC = () => {
         socket.onerror = (error) => {
             console.error('WebSocket cell lock error:', error);
             setWsAlive(false);
+            notification.error({
+                message: "Ошибка сервера!",
+                description: "Подключение разорвано, обновите страницу."
+            });
         };
 
-        //@ts-ignore
-        setWsCellLockUpdate(socket);
+        setWsCellLocksUpdate(socket);
 
         return () => {
             socket.close();
         };
     }, []);
     useEffect(() => {
-        if (isCreateRowSuccess && id) {
-            getTableData({tableId: id ?? "0", page: 1, limit: 100});
-            getTableColumns(id);
+        // Подключение к демону по WebSocket
+        const socket = new WebSocket(`${wsHost}/ws/demon/`);
+
+        socket.onopen = () => {
+            console.log('WebSocket demon connected');
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket demon disconnected');
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket demon error:', error);
+        };
+
+        setWsDemon(socket);
+        setContext((context) => ({...context, demonWS: socket}));
+
+        return () => {
+            socket.close();
+        };
+    }, []);
+    useEffect(() => {
+        if ((isCreateRowSuccess) && id) {
+            notification.success({
+                message: "Успешно!",
+                description: "Строка добавлена."
+            });
+            getRowsByTableId({tableId: id, page: 1, limit: context.pageSize});
         }
     }, [isCreateRowSuccess]);
     useEffect(() => {
-        if (tableColumns && id) {
-            // Создание колонок для таблицы
-            const columnsForTable: TableProps<any>['columns'] = tableColumns.map((column: ColumnModel) => ({
-                title: () => {
-                    return (<Flex gap={'small'} justify={'space-between'}>
-                        <div>{column.name}</div>
-                        <Flex align={'center'} gap={'small'}>
-                            <Tag color={column.data_type == 'text' ? 'geekblue' :
-                                column.data_type == 'integer' ? 'green' :
-                                    column.data_type == 'float' ? 'cyan' :
-                                        column.data_type == 'date' ? 'magenta' :
-                                            'volcano'} style={{lineHeight: "14px"}}>{column.data_type}</Tag>
-                            <Popconfirm title={`Удалить колонку '${column.name}'?`} onConfirm={() => deleteColumn(column.id ?? 9999)}>
-                                <Button size={'small'} icon={<DeleteColumnOutlined/>} danger/>
-                            </Popconfirm>
-                            <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
-                                setSelectedColumn(column);
-                                setIsVisibleColumnModal(true);
-                            }}/>
-                        </Flex>
-                    </Flex>)
-                },
-                dataIndex: column.id ?? 0,
-                key: column.id ?? 0,
-                editable: true,
-                // sorter: (a, b) => {
-                //     if (!column.id) return 0;
-                //     let columnId = column.id.toString();
-                //     let valueA = a[columnId]?.value;
-                //     let valueB = b[columnId]?.value;
-                //     if (column.data_type == "text") return valueA && valueB ? valueA.toString().charCodeAt(0) - valueB.toString().charCodeAt(0) : 0;
-                //     if (column.data_type == "integer") return valueA && valueB ? valueA - valueB : 0;
-                //     return 0;
-                // },
-                ...getColumnSearchProps(column.id),
-            }));
-            setColumns(columnsForTable);
-            // -----
-
-            // Отправляю запрос на получение данных знаю кол-во колонок
-            getTableData({tableId: id, page: 1, limit: tableColumns.length * pageSize});
-            // -----
-        }
-    }, [tableColumns]);
-    useEffect(() => {
-        if (tableParams && columns && id) {
-            if (tableParams.pagination) {
-                setPageSize(tableParams.pagination.pageSize ?? 10);
-                getTableData({tableId: id, page: tableParams.pagination.current ?? 1, limit: columns.length * pageSize});
-            }
-        }
-    }, [tableParams])
-    useEffect(() => {
         if (tableData) {
-            if (tableData.results) {
-
-                // Получение списка уникальных строк
-                let rowsIds: number[] = tableData.results?.reduce((acc: number[], cell: CellModel) => {
-                    if (!acc.find((row: number) => row == cell.row)) {
-                        return acc.concat(cell.row);
-                    }
-                    return acc;
-                }, []);
-                // -----
-                console.log(rowsIds)
-                // Формирование датасета
-                const rowsForTable = rowsIds.map((rowId: number) => {
-                    if (!tableData.results) return null;
-                    let cellsByRow = tableData.results?.filter((cell: CellModel) => cell.row == rowId);
-                    let item: any = {};
-                    item.rowId = rowId;
-                    // Получив список всех ячеек в строке формируем объект для датасета где ключ это ИД колонки из ячейки
-                    cellsByRow.forEach((cell: CellModel) => {
-                        if (cell.column) item[cell.column] = cell;
-                    });
-                    // -----
-                    return item;
-                });
-                setRows(rowsForTable);
-                // -----
-
-                // Настройка пагинации
-                setTableParams((prev: TableParams) => {
-                    if (columns) prev.pagination = {...prev.pagination, total: tableData.count / columns?.length, pageSize};
-                    return prev;
+            // Формирование датасета
+            let rowsIds: number[] = [];
+            const rowsForTable = tableData.results.map((row: RowModel) => {
+                let item: any = {};
+                rowsIds.push(row.id);
+                item.id = row.id;
+                item['order'] = row.order;
+                // Получив список всех ячеек в строке формируем объект для датасета где ключ это ИД колонки из ячейки
+                row.cells_list.forEach((cell: CellModel) => {
+                    if (cell.column) item[cell.column] = cell;
                 });
                 // -----
-
-            }
+                return item;
+            });
+            if (currentUser && id)
+                getRowPermissions({table_id: id, user_id: currentUser.id, rowsIds});
+            setContext((prevState) => ({...prevState, rows: rowsForTable}));
+            // -----
         }
     }, [tableData]);
     useEffect(() => {
+        if (columnsFromRequest && id) {
+            const columns: GridColDef[] = columnsFromRequest.map((column: ColumnModel) => {
+                console.log(column.data_type)
+                return {
+                    field: column.id ? column.id.toString() : "999",
+                    headerName: column.name,
+                    editable: true,
+                    width: 200,
+                    type: column.data_type == 'text' ? 'string' :
+                        column.data_type == 'integer' ? 'number' :
+                            column.data_type == 'float' ? 'number' :
+                                column.data_type == 'date' ? 'date' :
+                                    column.data_type == 'boolean' ? 'singleSelect' :
+                                        column.data_type == 'select' ? 'singleSelect' :
+                                        'string',
+                    valueGetter: (params: CellModel) => {
+                        if (!params) return "";
+                        if (params.value == null)
+                            return "";
+                        if (typeof params.value == "object") {
+                            // Встретили дату
+                            params.value as Date;
+                            return formatDate(params.value);
+                        } else {
+                            // Если тип данных колонки явно указан - Дата. Следует проверить не является ли датой ячейка
+                            if (column.data_type == 'date') {
+                                if (isValidDateString(params.value)) return new Date(params.value.replace('.', '-'));
+                            }
+                            // -----
+                            return params.value;
+                        }
+                    },
+                    valueSetter: (value, row) => {
+                        let rowCopy = JSON.parse(JSON.stringify(row));
+                        rowCopy[column.id ?? 0].value = value
+                        return rowCopy;
+                    },
+                    valueFormatter: (params: string | Date) => {
+                        if (params == null)
+                            return "";
+                        if (typeof params == "object") {
+                            // Встретили дату
+                            params as Date;
+                            return formatDate(params);
+                        } else
+                            return params;
+                    },
+                    renderCell: (params) => {
+                        return <Cell row={params.row} column={column} formattedValue={params.formattedValue}/>
+                    },
+                    valueOptions: column.select_values ? column.select_values: []
+                }
+            });
+            let actionColumn: GridColDef = {
+                field: "action",
+                headerName: "",
+                width: 50,
+                groupable: false,
+                aggregable: false,
+                sortable: false,
+                filterable: false,
+                renderCell: (data) => (<Flex style={{height: '100%'}} gap={'small'} align={'center'} justify={'center'}>
+                    <Tag>{data.id}</Tag>
+                    <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
+                        if (context) {
+                            context.setIsVisibleRowSettingsModal(true);
+                            context.setSelectedRowId(data.row.id);
+                        }
+                    }}/>
+                    <Popconfirm title={"Вы точно хотите удалить строку?"} okText={"Да"} onConfirm={() => {
+                        deleteRow(data.row.id);
+                        setContext((prev: TableContextType) => ({
+                            ...prev,
+                            rows: prev.rows.filter((row) => row.id != data.row.id)
+                        }));
+                    }}>
+                        <Button size={'small'} danger icon={<DeleteRowOutlined/>}/>
+                    </Popconfirm>
+                </Flex>)
+            };
+            let orderColumn: GridColDef = {
+                field: "order",
+                headerName: "",
+                width: 50,
+                aggregable: false,
+                renderCell: (data) => (<Flex style={{height: '100%'}} gap={'small'} align={'center'} justify={'center'}>
+                    <Tag>{data.row['order'] + 1}</Tag>
+                </Flex>)
+            };
+            columns.push(orderColumn);
+            columns.push(actionColumn);
+            setContext(prev => ({...prev, columns}));
+            // Отправляю запрос на получение данных
+            getRowsByTableId({tableId: id, page: 1, limit: context.pageSize});
+            // -----
+        }
+    }, [columnsFromRequest]);
+    useEffect(() => {
         if (tableInfo) {
             setTitle(tableInfo.title);
-            setOwner(tableInfo.owner.username);
+            setContext((prev) => ({...prev, owner: tableInfo.owner}))
+            setIsTableOwner(tableInfo.owner.id == currentUser?.id);
         }
     }, [tableInfo]);
     useEffect(() => {
-        if (lockedCell) setContext({...context, lockedCellsIds: lockedCell});
+        if (lockedCell) setContext(prevState => ({...context, lockedCellsIds: lockedCell}));
     }, [lockedCell]);
-    useEffect(() => !isVisibleColumnModal ? setSelectedColumn(null) : () => {
+    useEffect(() => !isVisibleColumnModal ? setSelectedColumnId(null) : () => {
     }, [isVisibleColumnModal]);
     useEffect(() => {
         if (patchedTable) {
@@ -446,38 +462,42 @@ const TablePage: React.FC = () => {
         if (isTableDeleteSuccess) navigate("/table_service/tables_list");
     }, [isTableDeleteSuccess]);
     useEffect(() => {
-        if (isColumnDeleteSuccess) getTableColumns(id ?? "0");
-    }, [isColumnDeleteSuccess])
-    useEffect(() => {
-        if (isErrorTableData) {
-            navigate("/not_found")
-        }
-    }, [isErrorTableData]);
-    useEffect(() => {
-        if (isRemoveLocksSuccess) setContext({...context, lockedCellsIds: []});
+        if (isRemoveLocksSuccess) setContext(prevState => ({...prevState, lockedCellsIds: []}));
     }, [isRemoveLocksSuccess]);
+    useEffect(() => {
+        if (context.newMessages.length > 0 && !isVisibleChat) {
+            let newMessage: MessageModel = context.newMessages[context.newMessages.length - 1];
+            notification.info(({
+                message: `Новое сообщение от ${newMessage.user_info.last_name} ${newMessage.user_info.first_name}.`,
+                description: `${newMessage.text}`
+            }))
+        }
+    }, [context.newMessages]);
+    useEffect(() => {
+        if (rowsPermissionsFromRequest) {
+            setContext((prev: TableContextType) => ({...prev, rowPermissions: rowsPermissionsFromRequest}));
+        }
+    }, [rowsPermissionsFromRequest]);
+    useEffect(() => {
+        if (isDeleteRowSuccess) {
+            notification.success({
+                message: "Успешно!",
+                description: "Строка удалена."
+            });
+        }
+    }, [isDeleteRowSuccess]);
     // -----
 
     // Handlers
-    const handleSearch = (selectedKeys: string[], confirm: (param?: FilterConfirmProps) => void, dataIndex: DataIndex) => {
-        confirm();
-    };
-    const handleReset = (clearFilters: () => void) => {
-        clearFilters();
-    };
     const openColumnModalHandler = () => {
         setIsVisibleColumnModal(true);
     };
     const addRowHandler = () => {
-        if (id) createRow(id);
-    };
-    const deleteRowHandler = (rowId: number) => {
-        deleteRow(rowId);
-        setRows(prev => prev.filter((row) => row.rowId != rowId));
+        if (id) createRow({tableId: id});
     };
     const saveTitleHandler = () => {
-        if (editTitle && id) {
-            patchTable({id, title: editTitle});
+        if (editTitle && id && tableInfo) {
+            patchTable({...tableInfo ,title: editTitle});
         }
     };
     const deleteTableHandler = () => {
@@ -486,123 +506,87 @@ const TablePage: React.FC = () => {
     const removeLocksHandler = () => {
         if (id) removeLocks(id);
     };
-    const handleTableChange: TableProps<DataType>['onChange'] = (pagination, filters, sorter, extra) => {
-        removeLocksHandler();
-        setTableParams({
-            pagination,
-            filters,
-            sortOrder: Array.isArray(sorter) ? undefined : sorter.order,
-            sortField: Array.isArray(sorter) ? undefined : sorter.field
-        });
-    };
     const exportTableHandler = () => {
         let tmpButton = document.createElement('a');
         tmpButton.href = `${host}/api/table/${id}/export/xlsx/`
         tmpButton.click();
-    }
-    const shareTableHandler = () => {
-        alert("Жду реализации");
+    };
+    const enableChatHandler = () => {
+        localStorage.setItem(`unread_message_count_${id}`, "0");
+        setContext(prev => ({...prev, newMessages: [], unreadMessageCount: 0}));
+        setIsVisibleChat(true);
+    };
+    const searchHandler = () => {
+        if (id) getRowsByTableId({tableId: id, page: 1, limit: context.pageSize, search: searchText});
+    };
+    const goBackHandler = () => {
+        if (id) removeLocks(id);
+        navigate("/table_service/tables_list");
+    };
+    const clearSearchHandler = () => {
+        setSearchText("");
+        if (id) getRowsByTableId({tableId: id, page: 1, limit: context.pageSize});
     }
     // -----
 
     // Useful utils
-    const navigate = useNavigate();
-    const baseColumns: TableProps<any>['columns'] = [
-        {
-            title: "",
-            dataIndex: 'action',
-            key: 'action',
-            width: 100,
-            render: (record, row) => {
-                return (<Flex style={{width: '100%'}} justify={'center'} align={'center'} gap={'small'}>
-                    <Button icon={<SettingOutlined/>} onClick={() => {
-                        setSelectedRowId(row.rowId);
-                        setIsVisibleRowModal(true);
-                    }} size={'small'}/>
-                    <Popconfirm title={"Удалить строку?"} okText={"Да"} onConfirm={() => deleteRowHandler(row.rowId)}>
-                        <Button icon={<DeleteRowOutlined/>} danger size={'small'}/>
-                    </Popconfirm>
-                </Flex>)
-            }
-        }
-    ];
-    const handleSave = (row: DataType) => {
-        const newData = [...rows];
-        const index = newData.findIndex((item) => row.rowId === item.rowId);
-        const item = newData[index];
-        newData.splice(index, 1, {
-            ...item,
-            ...row,
-        });
-        setRows(newData);
-    };
-    const components = {
-        body: {
-            row: EditableRow,
-            cell: EditableCell,
-        },
-    };
-    const editableColumns = columns?.map((col: any) => {
-        if (!col.editable) {
-            return col;
-        }
-        return {
-            ...col,
-            onCell: (record: DataType) => {
-                return {
-                    record,
-                    editable: col.editable,
-                    dataIndex: col.dataIndex,
-                    title: col.title,
-                    handleSave,
-                }
-            },
-        };
-    });
+
     // -----
 
     return (
         <TableContext.Provider value={context}>
+            {tableInfo && <CoreChat setContext={setContext} visible={isVisibleChat} setVisible={setIsVisibleChat} table={tableInfo}/>}
             <Flex vertical={true} gap={'small'} style={{padding: 5}}>
                 {(isVisibleRowModal && selectedRowId) &&
-                    <RowSettingsModal rowId={selectedRowId} refresh={() => getTableData({tableId: id ?? "0", page: 1, limit: 100})} visible={isVisibleRowModal} setVisible={setIsVisibleRowModal}/>}
+                    <RowSettingsModal rowId={selectedRowId} refresh={() => getRowsByTableId({tableId: id ? id : "0", page: 1, limit: context.pageSize})} visible={isVisibleRowModal}
+                                      setVisible={setIsVisibleRowModal}/>}
                 {isVisibleColumnModal &&
-                    <ColumnModal column={selectedColumn} refresh={() => {
-                        getTableData({tableId: id ?? "0", page: 1, limit: 100});
-                        getTableColumns(id ?? "0");
-                    }} visible={isVisibleColumnModal} setVisible={setIsVisibleColumnModal}/>}
-                {isVisibleTableSettingsModal && <TableSettingsModal visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
+                    <ColumnSettingsModal
+                        id={selectedColumnId}
+                        visible={isVisibleColumnModal}
+                        setVisible={setIsVisibleColumnModal}
+                        refresh={() => getTableColumns(id ?? "999")}
+                    />}
+                {(isVisibleTableSettingsModal && tableInfo) && <TableSettingsModal table={tableInfo} visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
                 {isVisibleImportRowModal &&
-                    <ImportRowsModal visible={isVisibleImportRowModal} setVisible={setIsVisibleImportRowModal} refresh={(() => getTableData({tableId: id ?? "0", page: 1, limit: 100}))}/>}
+                    <ImportRowsModal visible={isVisibleImportRowModal} setVisible={setIsVisibleImportRowModal}
+                                     refresh={() => getRowsByTableId({tableId: id ? id : "0", page: 1, limit: context.pageSize})}/>}
                 <Flex align={'center'} justify={'space-between'}>
-                    <Flex vertical>
-                        <Flex align={'center'} gap={'small'} style={{marginTop: 15}}>
-                            {isTitleEditMode ?
-                                <>
-                                    <Input disabled={isTablePatchLoading} style={{width: 200}} value={editTitle ?? ""} onChange={(e) => setEditTitle(e.target.value)}/>
-                                    <Button disabled={isTablePatchLoading} icon={<SaveOutlined/>} onClick={saveTitleHandler}/>
-                                    <Button disabled={isTablePatchLoading} danger icon={<CloseOutlined/>} onClick={() => {
-                                        setIsTitleEditMode(false);
-                                        setEditTitle(null);
-                                    }}/>
-                                </>
-                                :
-                                <>
-                                    <div style={{fontWeight: 'bold'}}>{title ? title : "Ждем..."}</div>
-                                    <Button icon={<EditOutlined/>} onClick={() => {
-                                        setIsTitleEditMode(true);
-                                        setEditTitle(title);
-                                    }}/>
-                                    <Button icon={<SettingOutlined/>} onClick={() => {
-                                        setIsVisibleTableSettingsModal(true);
-                                    }}/>
-                                    <Button icon={<ShareAltOutlined/>} onClick={shareTableHandler}/>
-                                </>
-                            }
+                    <Flex gap={'middle'}>
+                        <Button style={{height: 55}} icon={<ArrowLeftOutlined/>} onClick={goBackHandler}/>
+                        <Flex vertical>
+                            <Flex align={'center'} gap={'small'}>
+                                {isTitleEditMode ?
+                                    <>
+                                        <Input disabled={isTablePatchLoading} style={{width: 200}} value={editTitle ?? ""} onChange={(e) => setEditTitle(e.target.value)}/>
+                                        <Button disabled={isTablePatchLoading} icon={<SaveOutlined/>} onClick={saveTitleHandler}/>
+                                        <Button disabled={isTablePatchLoading} danger icon={<CloseOutlined/>} onClick={() => {
+                                            setIsTitleEditMode(false);
+                                            setEditTitle(null);
+                                        }}/>
+                                    </>
+                                    :
+                                    <>
+                                        <div style={{fontWeight: 'bold'}}>{title ? title : "Ждем..."}</div>
+                                        <Button icon={<EditOutlined/>} onClick={() => {
+                                            setIsTitleEditMode(true);
+                                            setEditTitle(title);
+                                        }}/>
+                                        {isTableOwner &&
+                                            <Button icon={<SettingOutlined/>} onClick={() => {
+                                                setIsVisibleTableSettingsModal(true);
+                                            }}/>
+                                        }
+                                        <Badge count={context.unreadMessageCount}>
+                                            <Button icon={<MessageOutlined/>} onClick={enableChatHandler}/>
+                                        </Badge>
+                                    </>
+                                }
+                            </Flex>
+                            <div style={{fontSize: 12, marginBottom: 5, marginTop: 5}}>{context.owner && <>Владелец: {`${context.owner.last_name} ${context.owner.first_name}`}</>}</div>
                         </Flex>
-                        <div style={{fontSize: 12, marginBottom: 5}}>{owner && <>Владелец: {owner}</>}</div>
                     </Flex>
-                    <Flex style={{fontSize: 12}}>
+                    <Flex style={{fontSize: 12}} vertical gap={'small'}>
                         {wsAlive ?
                             <Tag icon={<CheckCircleOutlined/>} color="success">
                                 Соединение активно
@@ -614,7 +598,7 @@ const TablePage: React.FC = () => {
                         }
                     </Flex>
                 </Flex>
-                <Flex style={{width: window.innerWidth - 10}}>
+                <Flex style={{width: window.innerWidth - 10}} gap={'small'}>
                     <Flex gap={'small'} style={{width: '100%'}}>
                         <Flex vertical gap={'small'}>
                             <Button type={'primary'} style={{width: 200}} onClick={openColumnModalHandler}>Добавить столбец</Button>
@@ -623,6 +607,13 @@ const TablePage: React.FC = () => {
                         <Flex vertical gap={'small'}>
                             <Button type={'primary'} style={{width: 200}} onClick={exportTableHandler}>Экспорт таблицы</Button>
                             <Button type={'primary'} style={{width: 200}} onClick={() => setIsVisibleImportRowModal(true)}>Добавить строки из файла</Button>
+                        </Flex>
+                        <Flex vertical justify={'end'}>
+                            <Flex gap={'small'}>
+                                <Input placeholder={"Полнотекстовой поиск"} value={searchText} onChange={(e) => setSearchText(e.target.value)}/>
+                                <Button icon={<SearchOutlined/>} onClick={searchHandler} disabled={isTableDataLoading}/>
+                                <Button danger icon={<CloseOutlined/>} onClick={clearSearchHandler} disabled={isTableDataLoading}/>
+                            </Flex>
                         </Flex>
                     </Flex>
                     <Flex vertical gap={'small'}>
@@ -634,14 +625,15 @@ const TablePage: React.FC = () => {
                         <Button danger type={'primary'} style={{width: 200}} onClick={removeLocksHandler}>Завершить редактирование</Button>
                     </Flex>
                 </Flex>
-                {editableColumns &&
-                    <MemoizedTable editableColumns={editableColumns} baseColumns={baseColumns} rows={rows} isTableDataLoading={isTableDataLoading} tableParams={tableParams} components={components}
-                                   handleTableChange={handleTableChange}/>
-                }
+                <CoreGrid
+                    wsCellLocks={wsCellLocksUpdate}
+                    wsCellsUpdate={wsCellsUpdate}
+                    setContext={setContext}
+                    insertRow={createRow}
+                />
             </Flex>
         </TableContext.Provider>
     );
 };
-
 
 export default TablePage;

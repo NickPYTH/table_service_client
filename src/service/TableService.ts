@@ -23,12 +23,14 @@ export const tableAPI = createApi({
             }),
             invalidatesTags: ['table']
         }),
-        create: build.mutation<TableModel, string>({
-            query: (title) => ({
+        create: build.mutation<TableModel, {title: string, with_cell_confirm: boolean, with_cell_logging: boolean}>({
+            query: ({title, with_cell_confirm, with_cell_logging}) => ({
                 url: `tables/`,
                 method: 'POST',
                 body: {
-                    title
+                    title,
+                    with_cell_confirm,
+                    with_cell_logging
                 }
             }),
             invalidatesTags: ['table']
@@ -47,13 +49,11 @@ export const tableAPI = createApi({
             }),
             invalidatesTags: ['table']
         }),
-        patch: build.mutation<TableModel, {id: string, title: string}>({
-            query: ({id, title}) => ({
-                url: `table/${id}/`,
+        patch: build.mutation<TableModel, TableModel>({
+            query: (body) => ({
+                url: `table/${body.id}/`,
                 method: 'PATCH',
-                body: {
-                    title
-                }
+                body
             }),
             invalidatesTags: ['table']
         }),

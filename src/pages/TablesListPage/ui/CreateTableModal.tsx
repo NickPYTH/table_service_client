@@ -1,7 +1,9 @@
 import React, {useEffect, useState} from 'react';
-import {Flex, Input, Modal} from 'antd';
+import {Flex, Input, Modal, Radio, Typography} from 'antd';
 import {tableAPI} from "service/TableService";
 import {useNavigate} from "react-router-dom";
+
+const {Text} = Typography;
 
 type ModalProps = {
     visible: boolean,
@@ -12,6 +14,8 @@ export const CreateTableModal = (props: ModalProps) => {
 
     // States
     const [tableName, setTableName] = useState("");
+    const [withCellConfirm, setWithCellConfirm] = useState(false);
+    const [withCellLogging, setWithCellLogging] = useState(false);
     const navigate = useNavigate();
     // -----
 
@@ -37,7 +41,11 @@ export const CreateTableModal = (props: ModalProps) => {
         setTableName(value);
     };
     const createTableHandler = () => {
-        if (tableName) createTable(tableName);
+        if (tableName) createTable({
+            title: tableName,
+            with_cell_confirm: withCellConfirm,
+            with_cell_logging: withCellLogging
+        });
     }
     // -----
 
@@ -61,13 +69,28 @@ export const CreateTableModal = (props: ModalProps) => {
                loading={isCreateTableLoading}
                confirmLoading={isCreateTableLoading}
         >
-            <Flex align={'center'} gap={'small'}>
-                <div style={{width: 200}}>Название таблицы</div>
-                <Input
-                    placeholder={"Название таблицы"}
-                    value={tableName}
-                    onChange={(e) => updateTableNameHandler(e.target.value)}
-                />
+            <Flex vertical gap={'small'}>
+                <Flex gap={'small'} align={'center'}>
+                    <Text style={{width: 220}}>Название таблицы</Text>
+                    <Input
+                        placeholder={"Название таблицы"}
+                        value={tableName}
+                        onChange={(e) => updateTableNameHandler(e.target.value)}
+                    />
+                </Flex>
+                <Flex gap={'small'}>
+                    <Text style={{width: 220}}>
+                        Подтверждение ввода в ячейку
+                    </Text>
+                    <Radio.Group
+                        value={withCellConfirm}
+                        options={[
+                            {value: true, label: "Да"},
+                            {value: false, label: "Нет"},
+                        ]}
+                        onChange={(e) => setWithCellConfirm(e.target.value)}
+                    />
+                </Flex>
             </Flex>
         </Modal>
     );

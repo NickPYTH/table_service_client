@@ -6,7 +6,7 @@ export type CurrentUserModelStateType = {
 }
 
 const initialState: CurrentUserModelStateType = {
-    user: null
+    user: null,
 }
 
 const userSlice = createSlice({

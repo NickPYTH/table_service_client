@@ -9,7 +9,7 @@ export default (env: BuildEnv) => {
         entry: path.resolve(__dirname, 'src', 'index.tsx'),
         build: path.resolve(__dirname, 'build'),
         html: path.resolve(__dirname, 'public', 'index.html'),
-        prefix: env.mode === 'production' ? '/table_service/' : '/',
+        prefix: env.mode === 'production' ? '/super_static/' : '/',
         src: path.resolve(__dirname, 'src'),
     }
 

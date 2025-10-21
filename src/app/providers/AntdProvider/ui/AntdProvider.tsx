@@ -21,7 +21,8 @@ const AntdProvider: FC = ({children}) => {
                 components: {
                     Table: {
                         cellPaddingInline: 2,
-                        cellPaddingBlock: 2
+                        cellPaddingBlock: 2,
+                        borderColor: '#c4c4c4'
                     }
                 }
             }}

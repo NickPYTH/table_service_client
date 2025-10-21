@@ -35,6 +35,10 @@ export const Navbar = () => {
         getCurrentUser();
     }, []);
     useEffect(() => {
+        if (currentUserData) {
+            if (currentUserData.id == null)
+                navigate(`table_service/error_403`);
+        }
         setItems([
             {
                 label: 'Мои таблицы',

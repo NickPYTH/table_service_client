@@ -5,4 +5,6 @@ export type TablePermissionsModel = {
     user_id: number;
     user: UserModel;
     table: number;
+    can_edit: boolean;
+    can_view: boolean;
 }

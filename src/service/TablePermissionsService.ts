@@ -16,7 +16,14 @@ export const tablepermissionsAPI = createApi({
             }),
             invalidatesTags: ['tablepermissions']
         }),
-        create: build.mutation<TablePermissionsModel, {tableId: string, userId: number}>({
+        getByTableIdAndUserId: build.mutation<TablePermissionsModel[], { table_id: string, user_id: number }>({
+            query: ({table_id, user_id}) => ({
+                url: `/?table_id=${table_id}&user_id=${user_id}`,
+                method: 'GET'
+            }),
+            invalidatesTags: ['tablepermissions']
+        }),
+        create: build.mutation<TablePermissionsModel, { tableId: string, userId: number }>({
             query: ({tableId, userId}) => ({
                 url: `/`,
                 method: 'POST',
@@ -24,6 +31,17 @@ export const tablepermissionsAPI = createApi({
                     table: tableId,
                     user_id: userId,
                     can_view: true
+                }
+            }),
+            invalidatesTags: ['tablepermissions']
+        }),
+        patch: build.mutation<TablePermissionsModel, { id: number, canEdit: boolean }>({
+            query: ({id, canEdit}) => ({
+                url: `/${id}/`,
+                method: 'PATCH',
+                body: {
+                    id,
+                    can_edit: canEdit
                 }
             }),
             invalidatesTags: ['tablepermissions']

@@ -67,7 +67,7 @@ export const AddUserModal = (props: ModalProps) => {
         if (id) createTablePermission({userId, tableId: id});
     }
     const createRowPermissionHandler = (userId: number) => {
-        if (props.rowId) createRowPermission({userId, rowId: props.rowId});
+        if (props.rowId && id) createRowPermission({userId, rowId: props.rowId, tableId: id});
     }
     // -----
 
@@ -98,11 +98,11 @@ export const AddUserModal = (props: ModalProps) => {
     // -----
 
     return (
-        <Modal title={"Выбор пользователя"}
+        <Modal title={`Выбор пользователя${isLoadingCreateTablePermissions ? '. Создание может занять ~30 сек в синхронном режиме' : ''}`}
                maskClosable={false}
                open={props.visible}
                onCancel={() => props.setVisible(false)}
-               width={'600px'}
+               width={'700px'}
                loading={false}
                footer={() => (<></>)}
         >

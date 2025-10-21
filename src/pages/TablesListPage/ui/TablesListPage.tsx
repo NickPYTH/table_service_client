@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {TableModel} from "entities/TableModel";
-import {Button, Flex, Input, InputRef, Space, Table, TableProps} from "antd";
+import {Button, Flex, Input, InputRef, Popconfirm, Space, Table, TableProps} from "antd";
 import {tableAPI} from "service/TableService";
 import dayjs from "dayjs";
 import {ColumnType} from 'antd/es/table';
@@ -10,7 +10,11 @@ import {CustomDateFilter} from 'shared/component/CustomDateFilter';
 import {useNavigate} from "react-router-dom";
 import {CreateTableModal} from "./CreateTableModal";
 import {ImportTableModal} from "pages/TablesListPage/ui/ImportTableModal";
-import {host, wsHost} from "shared/config/constants";
+import {wsHost} from "shared/config/constants";
+import {useSelector} from "react-redux";
+import {RootStateType} from "store/store";
+import {useNotification} from "app/providers/NotificationProvider/ui/NotificationProvider";
+
 
 export interface DataType extends TableModel {
     key: React.Key;
@@ -20,6 +24,14 @@ export interface DataType extends TableModel {
 type DataIndex = keyof DataType;
 
 const TablesListPage: React.FC = () => {
+
+    // Notification context
+    const notification = useNotification();
+    // -----
+
+    // Store
+    const currentUser = useSelector((state: RootStateType) => state.currentUser.user);
+    // -----
 
     // States
     const [selectedTable, setSelectedTable] = useState<TableModel | null>(null);
@@ -34,13 +46,16 @@ const TablesListPage: React.FC = () => {
         data: tablesData,
         isLoading: isTablesLoading
     }] = tableAPI.useGetAllMutation();
+    const [deleteTable, {
+        isSuccess: isTableDeleteSuccess,
+    }] = tableAPI.useDeleteMutation();
     // -----
-    console.log(host)
+
     // Effects
     useEffect(() => {
 
         // Подключение к WebSocket
-        const socket = new WebSocket(`${wsHost}/api/ws/table-updates/`);
+        const socket = new WebSocket(`${wsHost}/ws/table-updates/`);
 
         socket.onopen = () => {
             console.log('WebSocket connected');
@@ -66,6 +81,10 @@ const TablesListPage: React.FC = () => {
 
         socket.onerror = (error) => {
             console.error('WebSocket error:', error);
+            notification.error({
+                message: "Ошибка сервера!",
+                description: "Подключение разорвано, обновите страницу."
+            });
         };
 
         //@ts-ignore
@@ -81,6 +100,9 @@ const TablesListPage: React.FC = () => {
     useEffect(() => {
         if (tablesData) setTables(tablesData);
     }, [tablesData]);
+    useEffect(() => {
+        if (isTableDeleteSuccess) getTables();
+    }, [isTableDeleteSuccess])
     // -----
 
     // Handlers
@@ -215,6 +237,19 @@ const TablesListPage: React.FC = () => {
                         return false;
                 }
             },
+        },
+        {
+            title: '',
+            dataIndex: 'action',
+            key: 'action',
+            render: ((value: any, record: TableModel) => (<Flex justify={'center'} align={'center'} gap={'small'}>
+                <Button size={'small'} onClick={() => navigate(`${record.id}`)}>Открыть</Button>
+                {record.owner.id == currentUser?.id &&
+                    <Popconfirm onConfirm={() => deleteTable(record.id.toString())} title={`Вы точно хотите удалить таблицу "${record.title}"?`}>
+                        <Button size={'small'} danger>Удалить</Button>
+                    </Popconfirm>
+                }
+            </Flex>))
         },
     ];
     // -----

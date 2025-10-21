@@ -5,4 +5,5 @@ export type ColumnModel = {
     order?: number;
     data_type: any;
     table?: string;
+    select_values?: string[];
 }
