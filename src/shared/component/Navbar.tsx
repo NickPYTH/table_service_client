@@ -19,6 +19,7 @@ export const Navbar = () => {
     const [items, setItems] = useState<MenuProps['items']>([]);
     const [current, setCurrent] = useState(() => {
         if (location.pathname == '/table_service/tables_list') return 'tables_list';
+        if (location.pathname == '/table_service/tutorial') return 'tutorial';
         return "";
     });
     // -----
@@ -44,12 +45,17 @@ export const Navbar = () => {
                 label: 'Мои таблицы',
                 key: 'tables_list',
             },
+            {
+                label: 'Инструкция',
+                key: 'tutorial',
+            },
         ]);
         dispatch(setCurrentUser(currentUserData))
     }, [currentUserData]);
     useEffect(() => {
         setCurrent(() => {
             if (location.pathname == '/table_service/tables_list') return 'tables_list';
+            if (location.pathname == '/table_service/tutorial') return 'tutorial';
             return "";
         });
     }, [location]);
@@ -59,6 +65,7 @@ export const Navbar = () => {
     const onClick: MenuProps['onClick'] = (e) => {
         setCurrent(e.key);
         if (e.key === 'tables_list') navigate(`table_service/tables_list`)
+        if (e.key === 'tutorial') navigate(`table_service/tutorial`)
     };
     // -----
 

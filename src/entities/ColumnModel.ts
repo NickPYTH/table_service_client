@@ -6,4 +6,5 @@ export type ColumnModel = {
     data_type: any;
     table?: string;
     select_values?: string[];
+    related_column_ids: number[];
 }

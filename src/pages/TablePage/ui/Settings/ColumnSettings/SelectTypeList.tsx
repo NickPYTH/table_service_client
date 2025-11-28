@@ -4,6 +4,8 @@ import {GridColDef} from "@mui/x-data-grid-premium";
 import {DataGrid} from "shared/component/DataGrid";
 import {selectTypeAPI} from "service/SelectTypeService";
 import {useNotification} from "app/providers/NotificationProvider/ui/NotificationProvider";
+import {SelectTypeItemEditModal} from "pages/TablePage/ui/Settings/ColumnSettings/SelectTypeItemEditModal";
+import {SelectTypeModel} from "entities/SelectTypeModel";
 
 type PropsType = {
     columnId: number;
@@ -16,7 +18,9 @@ export const SelectTypeList = (props:PropsType) => {
     // -----
 
     // States
-    const [newSelectTypeRecord, setNewSelectTypeRecord] = useState("")
+    const [newSelectTypeRecord, setNewSelectTypeRecord] = useState("");
+    const [isVisibleSelectTypeItemEditModal, setIsVisibleSelectTypeItemEditModal] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<SelectTypeModel | null>(null);
     // -----
 
     // Web requests
@@ -52,13 +56,20 @@ export const SelectTypeList = (props:PropsType) => {
         {
             field: "name",
             headerName: "Содержимое",
-            width: 300
+            width: 270
         },
         {
             field: "actions",
             headerName: "",
+            width: 180,
             renderCell: (params) => {
-                return (<Flex justify={'center'} style={{width: '100%'}}>
+                return (<Flex justify={'center'} gap={'small'} style={{width: '100%'}}>
+                    <Button size={'small'} onClick={() => {
+                        setSelectedItem(params.row as SelectTypeModel);
+                        setIsVisibleSelectTypeItemEditModal(true);
+                    }}>
+                        Изменить
+                    </Button>
                     <Popconfirm title={"Вы точно хотите удалить "}
                                 okText={"Да"}
                                 onConfirm={() => deleteSelectType(params.id as number)}>
@@ -99,6 +110,12 @@ export const SelectTypeList = (props:PropsType) => {
 
     return(
         <Flex vertical gap={'small'}>
+            {(isVisibleSelectTypeItemEditModal && selectedItem) &&
+                <SelectTypeItemEditModal
+                    visible={isVisibleSelectTypeItemEditModal}
+                    setVisible={setIsVisibleSelectTypeItemEditModal}
+                    refresh={() => getSelectTypeList(props.columnId)}
+                    item={selectedItem} /> }
             <Divider style={{margin: 0, padding: 0}} />
             <Flex gap={'small'}>
                 <Input placeholder="Введите новое значение" size={'small'} value={newSelectTypeRecord} onChange={(e) => setNewSelectTypeRecord(e.target.value)}/>

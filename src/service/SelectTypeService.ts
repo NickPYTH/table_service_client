@@ -11,8 +11,16 @@ export const selectTypeAPI = createApi({
     endpoints: (build) => ({
         create: build.mutation<SelectTypeModel, SelectTypeModel>({
             query: (body) => ({
-                url: `/`,
+                url: `/` ,
                 method: 'POST',
+                body
+            }),
+            invalidatesTags: ['selecttype']
+        }),
+        update: build.mutation<SelectTypeModel, SelectTypeModel>({
+            query: (body) => ({
+                url: `/${body.id}/`,
+                method: 'PATCH',
                 body
             }),
             invalidatesTags: ['selecttype']

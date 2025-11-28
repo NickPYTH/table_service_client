@@ -1,7 +1,7 @@
 import {Flex, Modal, Radio, Typography} from "antd";
 import React, {useEffect, useState} from "react";
 import {rowPermissionsAPI} from "service/RowPermissionsService";
-import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {PermissionModel} from "entities/PermissionModel";
 
 const {Text} = Typography;
 
@@ -9,7 +9,7 @@ type ModalProps = {
     visible: boolean,
     setVisible: Function,
     refresh: Function,
-    permission: RowPermissionsModel
+    permission: PermissionModel
 }
 
 export const EditUserPermission = (props: ModalProps) => {

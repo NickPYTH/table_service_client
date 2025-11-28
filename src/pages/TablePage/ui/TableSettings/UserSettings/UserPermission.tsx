@@ -100,6 +100,7 @@ export const UserPermission = () => {
                                     setVisible={setIsVisibleEditUserPermissionModal}/>}
             {isVisibleAddUserModal &&
                 <AddUserModal
+                    id={999}
                     type={'table'}
                     refresh={() => getPermissionByTableId(id ?? "0")}
                     visible={isVisibleAddUserModal}

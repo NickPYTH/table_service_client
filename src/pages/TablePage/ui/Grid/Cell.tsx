@@ -3,7 +3,8 @@ import {useContext, useEffect, useState} from "react";
 import {TableContext} from "pages/TablePage/ui/TablePage";
 import {RootStateType} from "store/store";
 import {useSelector} from "react-redux";
-import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {PermissionModel} from "entities/PermissionModel";
+import {Tag} from "antd";
 
 type PropsType = {
     formattedValue: string,
@@ -31,7 +32,11 @@ export const Cell = (props: PropsType) => {
             setIsLocked(
                 !!tableContext.lockedCellsIds.find((lock => lock.cell_id == props.row[columnId].id && currentUser?.id != lock.user_id))
                 ||
-                tableContext.rowPermissions?.find((rp: RowPermissionsModel) => rp.row == props.row.id) == undefined
+                (
+                tableContext.rowPermissions?.find((rp: PermissionModel) => rp.row == props.row.id) == undefined
+                    ||
+                tableContext.columnPermissions?.find((cp: PermissionModel) => cp.column == props.column.id) == undefined
+                )
             );
         }
     }, [tableContext]);
@@ -52,10 +57,20 @@ export const Cell = (props: PropsType) => {
                 </div>
             )
     }
+
     return (
         <div
-            style={{minHeight: 30, background: isLocked ? "#c4c4c4" : "inherit"}}>
-            {props.formattedValue}
+            style={{height: "100%", background: isLocked ? "#c4c4c4" : "inherit"}}>
+            {props.row[props.column.id ?? "123"] ?
+                props.row[props.column.id ?? "123"].formula_value ?
+                    <>
+                        <Tag>F</Tag>
+                        {props.row[props.column.id ?? "123"].formula_value}
+                    </>
+                    :
+                    props.formattedValue
+                :
+                props.formattedValue}
         </div>
     )
 }

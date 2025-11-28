@@ -3,6 +3,7 @@ export type CellModel = {
     row: number;
     column: number;
     value: string;
+    formula_value: string;
 
     // Вычисляемые поля
     type?: string

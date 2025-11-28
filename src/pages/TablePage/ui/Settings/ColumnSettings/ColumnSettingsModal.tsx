@@ -1,27 +1,30 @@
 import React, {useContext, useEffect, useState} from 'react';
-import {Button, Flex, Input, Modal, Popconfirm, Select} from 'antd';
+import {Button, Checkbox, Divider, Flex, Input, Modal, Popconfirm, Select} from 'antd';
 import {useParams} from "react-router-dom";
 import {columnAPI} from "service/ColumnService";
 import {ColumnModel} from "entities/ColumnModel";
 import {TableContext} from "pages/TablePage/ui/TablePage";
 import {GridColDef} from "@mui/x-data-grid-premium";
-import {SelectTypeList} from "pages/TablePage/ui/ColumnSettings/SelectTypeList";
+import {SelectTypeList} from "pages/TablePage/ui/Settings/ColumnSettings/SelectTypeList";
+import {UserPermission} from "pages/TablePage/ui/Settings/UserSettings/UserPermission";
+import {columnPermissionsAPI} from 'service/ColumnPermissionsService';
 
 enum ColumnType {
     TEXT = 'TEXT',
     INTEGER = 'INTEGER',
     FLOAT = 'FLOAT',
-    BOOLEAN = 'BOOLEAN',
     DATE = 'DATE',
+    DATETIME = 'DATETIME',
     SELECT = 'SELECT',
     AUTO = 'AUTO'
 }
 
 type ModalProps = {
-    id: number | null,
-    visible: boolean,
-    setVisible: Function,
-    refresh: Function
+    id: number | null;
+    visible: boolean;
+    setVisible: Function;
+    refresh: Function;
+    isTableOwner: boolean;
 }
 
 export const ColumnSettingsModal = (props: ModalProps) => {
@@ -35,6 +38,7 @@ export const ColumnSettingsModal = (props: ModalProps) => {
     const [columnName, setColumnName] = useState("");
     const [columnType, setColumnType] = useState<ColumnType>(ColumnType.TEXT);
     const [selectedColumnsIds, setSelectedColumnsIds] = useState<number[]>([]);
+    const [mode, setMode] = useState(false);
     // -----
 
     // Web requests
@@ -54,6 +58,14 @@ export const ColumnSettingsModal = (props: ModalProps) => {
         isSuccess: deleteColumnSuccess,
         isLoading: isDeleteColumnLoading
     }] = columnAPI.useDeleteMutation();
+    const [getPermissions, {
+        data: permissions,
+        isLoading: isPermissionsLoading
+    }] = columnPermissionsAPI.useGetAllByRowIdMutation();
+    const [deletePermission, {
+        isSuccess: isSuccessDeletePermission,
+        isLoading: isDeletePermissionLoading
+    }] = columnPermissionsAPI.useDeleteMutation();
     // -----
 
     // Effects
@@ -67,10 +79,14 @@ export const ColumnSettingsModal = (props: ModalProps) => {
                 column.data_type == 'integer' ? ColumnType.INTEGER :
                 column.data_type == 'float' ? ColumnType.FLOAT :
                 column.data_type == 'date' ? ColumnType.DATE :
-                column.data_type == 'boolean' ? ColumnType.BOOLEAN :
+                column.data_type == 'datetime' ? ColumnType.DATETIME :
                 column.data_type == 'select' ? ColumnType.SELECT :
                 column.data_type == 'auto' ? ColumnType.AUTO :
                 ColumnType.TEXT);
+            if (column.related_column_ids.length > 0){
+                setSelectedColumnsIds(column.related_column_ids);
+                setMode(true);
+            }
         }
     }, [column]);
     useEffect(() => {
@@ -93,7 +109,8 @@ export const ColumnSettingsModal = (props: ModalProps) => {
             let column: ColumnModel = {
                 name: columnName,
                 data_type: columnType.toLowerCase(),
-                table: id
+                table: id,
+                related_column_ids: selectedColumnsIds
             }
             createColumn(column);
         }
@@ -103,6 +120,7 @@ export const ColumnSettingsModal = (props: ModalProps) => {
             let column: ColumnModel = {
                 name: columnName,
                 data_type: columnType.toLowerCase(),
+                related_column_ids: selectedColumnsIds
             }
             patchColumn({id: props.id, body: column});
         }
@@ -156,29 +174,54 @@ export const ColumnSettingsModal = (props: ModalProps) => {
                             value: type, label: type == ColumnType.TEXT ? "Текст" :
                                 type == ColumnType.INTEGER ? "Целое" :
                                     type == ColumnType.FLOAT ? "Дробное" :
-                                        type == ColumnType.BOOLEAN ? "Логическое" :
                                             type == ColumnType.DATE ? "Дата" :
-                                                type == ColumnType.AUTO ? "Автоинкремент" :
-                                                    (type == ColumnType.SELECT && props.id) ? "Список" :
-                                                ""
+                                                type == ColumnType.DATETIME ? "Дата и время" :
+                                                    type == ColumnType.AUTO ? "Автоинкремент" :
+                                                        (type == ColumnType.SELECT) ? "Список" :
+                                                    ""
                         }))}
                     />
                 </Flex>
                 {columnType == ColumnType.AUTO &&
-                    <Flex align={'center'} gap={'small'}>
-                        <div style={{width: 100}}>Колонки</div>
-                        <Select
-                            mode={'multiple'}
-                            value={selectedColumnsIds}
-                            placeholder={"Выберите колонки"}
-                            style={{width: '100%'}}
-                            onChange={(val) => setSelectedColumnsIds(val)}
-                            options={tableContext?.columns?.map((column:GridColDef) => ({value: column.field, label: column.headerName}))}
-                        />
-                    </Flex>
+                    <>
+                        <Flex align={"center"}>
+                            <div style={{width: 450}}>Увеличение счетчика с учетом уникальности значений в колонках</div>
+                            <Checkbox checked={mode} onChange={(e) => setMode(e.target.checked)}/>
+                        </Flex>
+                        {mode &&
+                            <Flex align={'center'} gap={'small'}>
+                                <div style={{width: 100}}>Колонки</div>
+                                <Select
+                                    mode={'multiple'}
+                                    value={selectedColumnsIds}
+                                    placeholder={"Выберите колонки"}
+                                    style={{width: '100%'}}
+                                    onChange={(val) => setSelectedColumnsIds(val)}
+                                    options={tableContext?.columns?.map((column:GridColDef) => ({value: parseInt(column.field), label: column.headerName}))}
+                                />
+                            </Flex>
+                        }
+                    </>
                 }
                 {(columnType == ColumnType.SELECT && props.id) &&
                     <SelectTypeList columnId={props.id}/>
+                }
+                {props.isTableOwner &&
+                    <>
+                        <Divider />
+                        {props.id &&
+                            <UserPermission
+                                id={props.id}
+                                type={'column'}
+                                getPermissions={getPermissions}
+                                permissions={permissions}
+                                isPermissionsLoading={isPermissionsLoading}
+                                isDeletePermissionLoading={isDeletePermissionLoading}
+                                deletePermission={deletePermission}
+                                isSuccessDeletePermission={isSuccessDeletePermission}
+                            />
+                        }
+                    </>
                 }
             </Flex>
         </Modal>

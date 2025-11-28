@@ -142,8 +142,11 @@ export const CoreChat = (props: PropsType) => {
             <Flex style={{height: window.innerHeight * 0.5}} gap={'small'} vertical justify={'space-between'}>
                 <Flex ref={chatBoxRef} style={{height: window.innerHeight * 0.5 - 60, overflowY: 'scroll', padding: 10}} gap={'small'} vertical>
                     {messages ?
+                    messages.length > 0 ?
                         messages.map((message: MessageModel) => <ChatMessage message={message}/>)
                         :
+                        <Empty description={"Нет сообщений"}/>
+                    :
                         <Empty description={"Нет сообщений"}/>
                     }
                     {printingUser && <div style={{fontSize: 12, color: '#797979', position: 'absolute', bottom: 65}}>{printingUser} печатает...</div>}

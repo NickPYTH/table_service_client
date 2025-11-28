@@ -1,20 +1,26 @@
-import React, {useEffect, useState} from 'react';
+import React, {useContext, useEffect, useState} from 'react';
 import {Divider, Flex, Modal, Radio, Typography} from 'antd';
 import {UserPermission} from "pages/TablePage/ui/TableSettings/UserSettings/UserPermission";
 import {FilialPermission} from "pages/TablePage/ui/TableSettings/FilialSettings/FilialPermission";
 import {TableModel} from "entities/TableModel";
 import {tableAPI} from "service/TableService";
 import {useNotification} from "app/providers/NotificationProvider/ui/NotificationProvider";
+import {TableContext} from "pages/TablePage/ui/TablePage";
 
 const {Text, Title} = Typography;
 
 type ModalProps = {
-    table: TableModel,
-    visible: boolean,
-    setVisible: Function,
+    table: TableModel;
+    visible: boolean;
+    setVisible: Function;
+    setContext: Function;
 };
 
 export const TableSettingsModal = (props: ModalProps) => {
+
+    // Context
+    const tableContext = useContext(TableContext);
+    // -----
 
     // Notification context
     const notification = useNotification();
@@ -34,19 +40,15 @@ export const TableSettingsModal = (props: ModalProps) => {
     // Handlers
     const updateWithCellConfirmHandler = (val:boolean) => {
         update({...props.table, with_cell_confirm: val, with_cell_logging: withCellLogging});
+        props.setContext({...tableContext, withCellConfirm: val});
         setWithCellConfirm(val);
-    };
-    const updateWithCellLoggingHandler = (val:boolean) => {
-        update({...props.table, with_cell_logging: val, with_cell_confirm: withCellConfirm});
-        setWithCellLogging(val);
     };
     // -----
 
     // Effects
     useEffect(() => {
-        console.log(props.table)
         setWithCellLogging(props.table.with_cell_logging);
-        setWithCellConfirm(props.table.with_cell_confirm);
+        setWithCellConfirm(!!tableContext?.withCellConfirm);
     }, []);
     useEffect(() => {
         if (isUpdateSuccess) {
@@ -85,7 +87,7 @@ export const TableSettingsModal = (props: ModalProps) => {
                     </Flex>
                 </Flex>
                 <Divider style={{margin: 0}}/>
-                <UserPermission/>
+                <UserPermission />
                 <Divider style={{margin: 0}}/>
                 <FilialPermission/>
             </Flex>

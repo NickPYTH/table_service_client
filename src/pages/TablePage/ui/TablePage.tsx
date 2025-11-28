@@ -4,7 +4,7 @@ import {tableAPI} from "service/TableService";
 import {useNavigate, useParams} from "react-router-dom";
 import {CellModel} from "entities/CellModel";
 import {ColumnModel} from "entities/ColumnModel";
-import {ColumnSettingsModal} from "pages/TablePage/ui/ColumnSettings/ColumnSettingsModal";
+import {ColumnSettingsModal} from "pages/TablePage/ui/Settings/ColumnSettings/ColumnSettingsModal";
 import {rowAPI} from "service/RowService";
 import {
     ArrowLeftOutlined,
@@ -18,16 +18,16 @@ import {
     SearchOutlined,
     SettingOutlined
 } from "@ant-design/icons";
-import {RowSettingsModal} from "pages/TablePage/ui/RowSettings/RowSettingsModal";
+import {RowSettingsModal} from "pages/TablePage/ui/Settings/RowSettings/RowSettingsModal";
 import {useSelector} from "react-redux";
 import {RootStateType} from "store/store";
-import {host, wsHost} from "shared/config/constants";
+import {COLUMN_KEYS, host, wsHost} from "shared/config/constants";
 import {ImportRowsModal} from "pages/TablePage/ui/ImportRowsModal";
 import {columnAPI} from "service/ColumnService";
 import {UserModel} from "entities/UserModel";
 import {TableSettingsModal} from "pages/TablePage/ui/TableSettings/TableSettingsModal";
 import {tablepermissionsAPI} from "service/TablePermissionsService";
-import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {PermissionModel} from "entities/PermissionModel";
 import {TablePermissionsModel} from "entities/TablePermissionsModel";
 import {RowModel} from "entities/RowModel";
 import {CoreGrid} from "pages/TablePage/ui/Grid/CoreGrid";
@@ -37,9 +37,11 @@ import {CoreChat} from "pages/TablePage/ui/Chat/CoreChat";
 import {useNotification} from "app/providers/NotificationProvider/ui/NotificationProvider";
 import {MessageModel} from "entities/MessageModel";
 import {rowPermissionsAPI} from "service/RowPermissionsService";
-import {formatDate, isValidDateString} from "shared/config/utils";
+import {formatDate, formatDateTime} from "shared/config/utils";
+import dayjs from "dayjs";
+import {columnPermissionsAPI} from "service/ColumnPermissionsService";
 
-function updateCellValueInArray(dataArray: any, targetId: any, newValue: any) {
+function updateCellValueInArray(dataArray: any, targetId: any, newValue: any, newFormulaValue:any) {
     // Создаем копию массива, чтобы не мутировать исходные данные
     const result = JSON.parse(JSON.stringify(dataArray));
 
@@ -53,6 +55,7 @@ function updateCellValueInArray(dataArray: any, targetId: any, newValue: any) {
             if (item[key].id === targetId) {
                 // Заменяем значение
                 item[key].value = newValue;
+                item[key].formula_value = newFormulaValue;
                 // Можно прервать цикл, если ID уникальны в рамках одного объекта
                 break;
             }
@@ -69,10 +72,12 @@ export type DataRowModel = {
 
 export type TableContextType = {
     owner: UserModel | null,
+    withCellConfirm: boolean | null,
     ws: WebSocket | null;
     demonWS: WebSocket | null;
     lockedCellsIds: { user_id: number, cell_id: number }[];
-    rowPermissions: RowPermissionsModel[] | null;
+    rowPermissions: PermissionModel[] | null;
+    columnPermissions: PermissionModel[] | null;
     tablePermission: TablePermissionsModel | null;
     rows: DataRowModel[];
     columns: GridColDef[];
@@ -154,6 +159,9 @@ const TablePage: React.FC = () => {
     const [getRowPermissions, {
         data: rowsPermissionsFromRequest,
     }] = rowPermissionsAPI.useGetAllByUserIdMutation();
+    const [getColumnPermissions, {
+        data: columnsPermissionsFromRequest,
+    }] = columnPermissionsAPI.useGetAllByUserIdMutation();
     // -----
 
     // States
@@ -174,10 +182,12 @@ const TablePage: React.FC = () => {
     const [isTableOwner, setIsTableOwner] = useState(false);
     const [context, setContext] = useState<TableContextType>({
         owner: null,
+        withCellConfirm: null,
         ws: null,
         demonWS: null,
         lockedCellsIds: [],
         rowPermissions: null,
+        columnPermissions: null,
         tablePermission: null,
         rows: [],
         columns: [],
@@ -213,7 +223,7 @@ const TablePage: React.FC = () => {
     }, [tablePermission]);
     useEffect(() => {
         // Подключение к обновлению ячеек по WebSocket
-        const socket = new WebSocket(`${wsHost}/ws/cell-updates/`);
+        const socket = new WebSocket(`${wsHost}/ws/cell-updates/?table_id=${id}`);
 
         socket.onopen = () => {
             console.log('WebSocket cell update connected');
@@ -224,7 +234,7 @@ const TablePage: React.FC = () => {
             const message: { id: number, entity: CellModel, type: string } = JSON.parse(event.data);
             if (message.type == 'cell_update') {
                 setContext((prev: TableContextType) => {
-                    const updatedRows = updateCellValueInArray(prev.rows, message.id, message.entity.value);
+                    const updatedRows = updateCellValueInArray(prev.rows, message.id, message.entity.value, message.entity.formula_value);
                     return {...prev, rows: updatedRows};
                 });
             }
@@ -344,31 +354,62 @@ const TablePage: React.FC = () => {
     useEffect(() => {
         if (columnsFromRequest && id) {
             const columns: GridColDef[] = columnsFromRequest.map((column: ColumnModel) => {
-                console.log(column.data_type)
                 return {
                     field: column.id ? column.id.toString() : "999",
                     headerName: column.name,
+                    renderHeader: () => (<Flex style={{minWidth: 200}} vertical>
+                        <Flex>{column.name}</Flex>
+                        <Flex gap={'small'} align={'center'}>
+                            {/*@ts-ignore*/}
+                            <Tag>{column.order != undefined ? COLUMN_KEYS[column.order.toString()] : ""}</Tag>
+                            <Tag color={'blue'}>{column.data_type == 'text' ? 'строка' :
+                                column.data_type == 'integer' ? 'число' :
+                                    column.data_type == 'float' ? 'число' :
+                                        column.data_type == 'date' ? 'дата' :
+                                            column.data_type == 'datetime' ? 'дата и время' :
+                                                    column.data_type == 'select' ? 'список' :
+                                                        column.data_type == 'auto' ? 'счетчик' :
+                                                            'строка'}</Tag>
+                        </Flex>
+                    </Flex>),
                     editable: true,
-                    width: 200,
+                    minWidth: 200,
                     type: column.data_type == 'text' ? 'string' :
                         column.data_type == 'integer' ? 'number' :
                             column.data_type == 'float' ? 'number' :
                                 column.data_type == 'date' ? 'date' :
-                                    column.data_type == 'boolean' ? 'singleSelect' :
+                                    column.data_type == 'datetime' ? 'dateTime' :
                                         column.data_type == 'select' ? 'singleSelect' :
                                         'string',
                     valueGetter: (params: CellModel) => {
-                        if (!params) return "";
-                        if (params.value == null)
-                            return "";
+                        if (params == null) return "";
+                        if (params.value == null) return "";
                         if (typeof params.value == "object") {
                             // Встретили дату
-                            params.value as Date;
-                            return formatDate(params.value);
+                            //@ts-ignore
+                            if (params.value.getHours() == 0)
+                                return formatDate(params.value);
+                            else
+                                return formatDateTime(params.value);
                         } else {
                             // Если тип данных колонки явно указан - Дата. Следует проверить не является ли датой ячейка
                             if (column.data_type == 'date') {
-                                if (isValidDateString(params.value)) return new Date(params.value.replace('.', '-'));
+                                if (dayjs(params.value, "DD.MM.YYYY").isValid()) {
+                                    const [day, month, year] = params.value.split('.');
+                                    //@ts-ignore
+                                    return new Date(year, month-1, day)
+                                }
+                            }
+                            if (column.data_type == 'datetime') {
+                                console.log('hmmm', params.value)
+                                if (dayjs(params.value, "DD.MM.YYYY HH:mm").isValid() || dayjs(params.value, "DD.MM.YYYY").isValid()) {
+                                    let djs = dayjs(params.value, "DD.MM.YYYY HH:mm").isValid() ?
+                                        dayjs(params.value, "DD.MM.YYYY HH:mm")
+                                        :
+                                        dayjs(params.value, "DD.MM.YYYY");
+                                    //@ts-ignore
+                                    return new Date(djs.year(), djs.month(), djs.date(), djs.hour(), djs.minute(), 0)
+                                }
                             }
                             // -----
                             return params.value;
@@ -376,7 +417,7 @@ const TablePage: React.FC = () => {
                     },
                     valueSetter: (value, row) => {
                         let rowCopy = JSON.parse(JSON.stringify(row));
-                        rowCopy[column.id ?? 0].value = value
+                        rowCopy[column.id ?? 0].value = value;
                         return rowCopy;
                     },
                     valueFormatter: (params: string | Date) => {
@@ -396,21 +437,19 @@ const TablePage: React.FC = () => {
                 }
             });
             let actionColumn: GridColDef = {
-                field: "action",
-                headerName: "",
+                field: "",
                 width: 50,
                 groupable: false,
                 aggregable: false,
                 sortable: false,
                 filterable: false,
                 renderCell: (data) => (<Flex style={{height: '100%'}} gap={'small'} align={'center'} justify={'center'}>
-                    <Tag>{data.id}</Tag>
-                    <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
+                    {isTableOwner && <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
                         if (context) {
                             context.setIsVisibleRowSettingsModal(true);
                             context.setSelectedRowId(data.row.id);
                         }
-                    }}/>
+                    }}/>}
                     <Popconfirm title={"Вы точно хотите удалить строку?"} okText={"Да"} onConfirm={() => {
                         deleteRow(data.row.id);
                         setContext((prev: TableContextType) => ({
@@ -437,12 +476,17 @@ const TablePage: React.FC = () => {
             // Отправляю запрос на получение данных
             getRowsByTableId({tableId: id, page: 1, limit: context.pageSize});
             // -----
+
+            // Получаем права на колонки
+            if (currentUser && id)
+                getColumnPermissions({table_id: id, user_id: currentUser.id, columnIds: columns.map(column => parseInt(column.field))});
+            // -----
         }
-    }, [columnsFromRequest]);
+    }, [columnsFromRequest, isTableOwner]);
     useEffect(() => {
         if (tableInfo) {
             setTitle(tableInfo.title);
-            setContext((prev) => ({...prev, owner: tableInfo.owner}))
+            setContext((prev) => ({...prev, owner: tableInfo.owner, withCellConfirm: tableInfo.with_cell_confirm}))
             setIsTableOwner(tableInfo.owner.id == currentUser?.id);
         }
     }, [tableInfo]);
@@ -478,6 +522,11 @@ const TablePage: React.FC = () => {
             setContext((prev: TableContextType) => ({...prev, rowPermissions: rowsPermissionsFromRequest}));
         }
     }, [rowsPermissionsFromRequest]);
+    useEffect(() => {
+        if (columnsPermissionsFromRequest) {
+            setContext((prev: TableContextType) => ({...prev, columnPermissions: columnsPermissionsFromRequest}));
+        }
+    }, [columnsPermissionsFromRequest]);
     useEffect(() => {
         if (isDeleteRowSuccess) {
             notification.success({
@@ -526,7 +575,7 @@ const TablePage: React.FC = () => {
     const clearSearchHandler = () => {
         setSearchText("");
         if (id) getRowsByTableId({tableId: id, page: 1, limit: context.pageSize});
-    }
+    };
     // -----
 
     // Useful utils
@@ -538,7 +587,8 @@ const TablePage: React.FC = () => {
             {tableInfo && <CoreChat setContext={setContext} visible={isVisibleChat} setVisible={setIsVisibleChat} table={tableInfo}/>}
             <Flex vertical={true} gap={'small'} style={{padding: 5}}>
                 {(isVisibleRowModal && selectedRowId) &&
-                    <RowSettingsModal rowId={selectedRowId} refresh={() => getRowsByTableId({tableId: id ? id : "0", page: 1, limit: context.pageSize})} visible={isVisibleRowModal}
+                    <RowSettingsModal rowId={selectedRowId} refresh={() => getRowsByTableId({tableId: id ? id : "0", page: 1, limit: context.pageSize})}
+                                      visible={isVisibleRowModal}
                                       setVisible={setIsVisibleRowModal}/>}
                 {isVisibleColumnModal &&
                     <ColumnSettingsModal
@@ -546,8 +596,9 @@ const TablePage: React.FC = () => {
                         visible={isVisibleColumnModal}
                         setVisible={setIsVisibleColumnModal}
                         refresh={() => getTableColumns(id ?? "999")}
+                        isTableOwner={isTableOwner}
                     />}
-                {(isVisibleTableSettingsModal && tableInfo) && <TableSettingsModal table={tableInfo} visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
+                {(isVisibleTableSettingsModal && tableInfo) && <TableSettingsModal setContext={setContext} table={tableInfo} visible={isVisibleTableSettingsModal} setVisible={setIsVisibleTableSettingsModal}/>}
                 {isVisibleImportRowModal &&
                     <ImportRowsModal visible={isVisibleImportRowModal} setVisible={setIsVisibleImportRowModal}
                                      refresh={() => getRowsByTableId({tableId: id ? id : "0", page: 1, limit: context.pageSize})}/>}
@@ -568,14 +619,16 @@ const TablePage: React.FC = () => {
                                     :
                                     <>
                                         <div style={{fontWeight: 'bold'}}>{title ? title : "Ждем..."}</div>
-                                        <Button icon={<EditOutlined/>} onClick={() => {
-                                            setIsTitleEditMode(true);
-                                            setEditTitle(title);
-                                        }}/>
                                         {isTableOwner &&
-                                            <Button icon={<SettingOutlined/>} onClick={() => {
-                                                setIsVisibleTableSettingsModal(true);
-                                            }}/>
+                                            <>
+                                                <Button icon={<EditOutlined/>} onClick={() => {
+                                                    setIsTitleEditMode(true);
+                                                    setEditTitle(title);
+                                                }}/>
+                                                <Button icon={<SettingOutlined/>} onClick={() => {
+                                                    setIsVisibleTableSettingsModal(true);
+                                                }}/>
+                                            </>
                                         }
                                         <Badge count={context.unreadMessageCount}>
                                             <Button icon={<MessageOutlined/>} onClick={enableChatHandler}/>
@@ -616,20 +669,23 @@ const TablePage: React.FC = () => {
                             </Flex>
                         </Flex>
                     </Flex>
-                    <Flex vertical gap={'small'}>
-                        <Popconfirm title={"Вы точно хотите таблицу? Это действие необратимо."} onConfirm={deleteTableHandler}>
-                            <Button danger type={'primary'} style={{width: 200}}>
-                                Удалить таблицу
-                            </Button>
-                        </Popconfirm>
-                        <Button danger type={'primary'} style={{width: 200}} onClick={removeLocksHandler}>Завершить редактирование</Button>
-                    </Flex>
+                    {isTableOwner &&
+                        <Flex vertical gap={'small'}>
+                            <Popconfirm title={"Вы точно хотите таблицу? Это действие необратимо."} onConfirm={deleteTableHandler}>
+                                <Button danger type={'primary'} style={{width: 200}}>
+                                    Удалить таблицу
+                                </Button>
+                            </Popconfirm>
+                            <Button danger type={'primary'} style={{width: 200}} onClick={removeLocksHandler}>Завершить редактирование</Button>
+                        </Flex>
+                    }
                 </Flex>
                 <CoreGrid
                     wsCellLocks={wsCellLocksUpdate}
                     wsCellsUpdate={wsCellsUpdate}
                     setContext={setContext}
                     insertRow={createRow}
+                    isTableOwner={isTableOwner}
                 />
             </Flex>
         </TableContext.Provider>

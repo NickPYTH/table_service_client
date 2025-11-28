@@ -23,9 +23,16 @@ export const userAPI = createApi({
             }),
             invalidatesTags: ['user']
         }),
-        getAllByRowId: build.mutation<UserModel[], number>({
-            query: (rowId) => ({
-                url: `/users/?row_id=${rowId}`,
+        getAllByRowId: build.mutation<UserModel[], {tableId: string, rowId: number}>({
+            query: ({tableId,  rowId}) => ({
+                url: `/users/?table_id=${tableId}&row_id=${rowId}`,
+                method: 'GET',
+            }),
+            invalidatesTags: ['user']
+        }),
+        getAllByColumnId: build.mutation<UserModel[], {tableId: string, columnId: number}>({
+            query: ({tableId,  columnId}) => ({
+                url: `/users/?table_id=${tableId}&column_id=${columnId}`,
                 method: 'GET',
             }),
             invalidatesTags: ['user']

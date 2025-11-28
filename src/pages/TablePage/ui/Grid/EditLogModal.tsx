@@ -32,8 +32,8 @@ export const EditLogModal = (props:PropsType) => {
             headerName: "ИД",
         },
         {
-            field: "user_id",
-            headerName: "ИД пользователя",
+            field: "user",
+            headerName: "Пользователь",
             width: 200
         },
         {
@@ -47,7 +47,7 @@ export const EditLogModal = (props:PropsType) => {
             width: 200
         },
         {
-            field: "cell_id",
+            field: "cell",
             headerName: "Ячейка",
             width: 200
         },

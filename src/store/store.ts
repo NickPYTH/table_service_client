@@ -12,6 +12,7 @@ import {rowPermissionsAPI} from "service/RowPermissionsService";
 import {rowFilialPermissionsAPI} from "service/RowFilialPermissionsService";
 import {selectTypeAPI} from "service/SelectTypeService";
 import {cellEditLogAPI} from "service/CellEditLogService";
+import {columnPermissionsAPI} from "service/ColumnPermissionsService";
 
 export type RootStateType = {
     currentUser: CurrentUserModelStateType
@@ -28,6 +29,7 @@ const rootReducer = combineReducers({
     [tablepermissionsAPI.reducerPath]: tablepermissionsAPI.reducer,
     [tableFilialPermissionsAPI.reducerPath]: tableFilialPermissionsAPI.reducer,
     [rowPermissionsAPI.reducerPath]: rowPermissionsAPI.reducer,
+    [columnPermissionsAPI.reducerPath]: columnPermissionsAPI.reducer,
     [rowFilialPermissionsAPI.reducerPath]: rowFilialPermissionsAPI.reducer,
     [selectTypeAPI.reducerPath]: selectTypeAPI.reducer,
     [cellEditLogAPI.reducerPath]: cellEditLogAPI.reducer,
@@ -47,6 +49,7 @@ export const setupStore = () => {
                 .concat(tablepermissionsAPI.middleware)
                 .concat(tableFilialPermissionsAPI.middleware)
                 .concat(rowPermissionsAPI.middleware)
+                .concat(columnPermissionsAPI.middleware)
                 .concat(rowFilialPermissionsAPI.middleware)
                 .concat(selectTypeAPI.middleware)
                 .concat(cellEditLogAPI.middleware)

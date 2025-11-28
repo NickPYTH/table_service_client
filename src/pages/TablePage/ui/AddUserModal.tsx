@@ -5,13 +5,14 @@ import {UserModel} from "entities/UserModel";
 import {useParams} from "react-router-dom";
 import {tablepermissionsAPI} from "service/TablePermissionsService";
 import {rowPermissionsAPI} from "service/RowPermissionsService";
+import {columnPermissionsAPI} from "service/ColumnPermissionsService";
 
 type ModalProps = {
-    visible: boolean,
-    setVisible: Function,
-    refresh: Function,
-    type: string,
-    rowId?: number
+    id: number;
+    visible: boolean;
+    setVisible: Function;
+    refresh: Function;
+    type: string;
 }
 
 export const AddUserModal = (props: ModalProps) => {
@@ -30,6 +31,10 @@ export const AddUserModal = (props: ModalProps) => {
         data: usersByRow,
         isLoading: isUsersByRowLoading
     }] = userAPI.useGetAllByRowIdMutation();
+    const [getUsersByColumn, {
+        data: usersByColumn,
+        isLoading: isUsersByColumnLoading
+    }] = userAPI.useGetAllByColumnIdMutation();
     const [createTablePermission, {
         isSuccess: isSuccessCreateTablePermissions,
         isLoading: isLoadingCreateTablePermissions
@@ -38,6 +43,10 @@ export const AddUserModal = (props: ModalProps) => {
         isSuccess: isSuccessCreateRowPermissions,
         isLoading: isLoadingCreateRowPermissions
     }] = rowPermissionsAPI.useCreateMutation();
+    const [createColumnPermission, {
+        isSuccess: isSuccessCreateColumnPermissions,
+        isLoading: isLoadingCreateColumnPermissions
+    }] = columnPermissionsAPI.useCreateMutation();
     // -----
 
     // Effects
@@ -45,7 +54,9 @@ export const AddUserModal = (props: ModalProps) => {
         if (props.type == 'table') {
             if (id) getUsersByTable(id);
         } else if (props.type == 'row') {
-            if (props.rowId) getUsersByRow(props.rowId);
+            if (id && props.id) getUsersByRow({tableId: id, rowId: props.id});
+        } else if (props.type == 'column') {
+            if (id && props.id) getUsersByColumn({tableId: id, columnId: props.id});
         }
     }, []);
     useEffect(() => {
@@ -55,20 +66,26 @@ export const AddUserModal = (props: ModalProps) => {
         if (usersByRow) setUsers(usersByRow);
     }, [usersByRow]);
     useEffect(() => {
-        if (isSuccessCreateTablePermissions || isSuccessCreateRowPermissions) {
+        if (usersByColumn) setUsers(usersByColumn);
+    }, [usersByColumn]);
+    useEffect(() => {
+        if (isSuccessCreateTablePermissions || isSuccessCreateRowPermissions || isSuccessCreateColumnPermissions) {
             props.setVisible(false);
             props.refresh();
         }
-    }, [isSuccessCreateTablePermissions, isSuccessCreateRowPermissions]);
+    }, [isSuccessCreateTablePermissions, isSuccessCreateRowPermissions, isSuccessCreateColumnPermissions]);
     // -----
 
     // Handlers
     const createTablePermissionHandler = (userId: number) => {
         if (id) createTablePermission({userId, tableId: id});
-    }
+    };
     const createRowPermissionHandler = (userId: number) => {
-        if (props.rowId && id) createRowPermission({userId, rowId: props.rowId, tableId: id});
-    }
+        if (props.id && id) createRowPermission({userId, rowId: props.id, tableId: id});
+    };
+    const createColumnPermissionHandler = (userId: number) => {
+        if (props.id && id) createColumnPermission({userId, columnId: props.id, tableId: id});
+    };
     // -----
 
     // Columns
@@ -91,7 +108,12 @@ export const AddUserModal = (props: ModalProps) => {
             dataIndex: 'action',
             key: 'action',
             render: (value, record) => <Flex style={{width: '100%', margin: 2}} justify={'center'} gap={'small'}>
-                <Button size={'small'} onClick={() => props.type == 'row'? createRowPermissionHandler(record.id) : createTablePermissionHandler(record.id)}>Добавить</Button>
+                <Button size={'small'} onClick={() =>
+                    props.type == 'row' ? createRowPermissionHandler(record.id) :
+                        props.type == 'table' ? createTablePermissionHandler(record.id) :
+                            props.type == 'column' ? createColumnPermissionHandler(record.id) : () => {}
+                    }>
+                    Добавить</Button>
             </Flex>
         },
     ];
@@ -110,7 +132,7 @@ export const AddUserModal = (props: ModalProps) => {
                 <Table
                     columns={columns}
                     dataSource={users}
-                    loading={isUsersByTableLoading || isUsersByRowLoading || isLoadingCreateTablePermissions || isLoadingCreateRowPermissions}
+                    loading={isUsersByTableLoading || isUsersByRowLoading || isLoadingCreateTablePermissions || isLoadingCreateRowPermissions || isLoadingCreateColumnPermissions}
                     bordered
                 />
             </Flex>

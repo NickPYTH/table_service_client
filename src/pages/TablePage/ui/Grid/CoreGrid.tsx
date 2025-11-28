@@ -1,10 +1,10 @@
 import {
     DataGridPremium,
     GridCellParams,
+    GridCellSelectionModel,
     gridClasses,
     GridColDef,
     GridFilterModel,
-    GridRowModel,
     GridSortModel,
     useGridApiRef
 } from "@mui/x-data-grid-premium";
@@ -24,24 +24,32 @@ import {DataRowModel, TableContext, TableContextType} from "pages/TablePage/ui/T
 import {debounce} from "lodash";
 import {ColumnMenu} from "./ColumnMenu";
 import {Button, Dropdown, Flex, Popconfirm, Tag} from "antd";
-import {CopyOutlined, DeleteRowOutlined, HistoryOutlined, PlusOutlined, SettingOutlined} from "@ant-design/icons";
+import {
+    CopyOutlined,
+    DeleteOutlined,
+    DeleteRowOutlined,
+    HistoryOutlined,
+    PlusOutlined,
+    SettingOutlined
+} from "@ant-design/icons";
 import {rowPermissionsAPI} from "service/RowPermissionsService";
-import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {PermissionModel} from "entities/PermissionModel";
 import {useNotification} from "app/providers/NotificationProvider/ui/NotificationProvider";
-import {formatDate, isValidDateString} from "shared/config/utils";
+import {formatDate, formatDateTime} from "shared/config/utils";
 import {EditLogModal} from "pages/TablePage/ui/Grid/EditLogModal";
+import {ConfirmCellEditModal} from "pages/TablePage/ui/Grid/ConfirmCellEditModal";
+import {columnPermissionsAPI} from "service/ColumnPermissionsService";
+import {COLUMN_KEYS} from "shared/config/constants";
+import {CustomPaginationWithSelect} from "pages/TablePage/ui/Grid/CustomPagination";
+import dayjs from "dayjs";
 
 type PropsType = {
-    wsCellLocks: WebSocket | null,
-    wsCellsUpdate: WebSocket | null,
-    setContext: Function,
-    insertRow: Function,
+    wsCellLocks: WebSocket | null;
+    wsCellsUpdate: WebSocket | null;
+    setContext: Function;
+    insertRow: Function;
+    isTableOwner: boolean;
 };
-
-function computeMutation(newRow:GridRowModel, oldRow: GridRowModel) {
-    // compare rows
-    return "change";
-}
 
 export const CoreGrid = (props: PropsType) => {
 
@@ -51,6 +59,7 @@ export const CoreGrid = (props: PropsType) => {
 
     // Context
     const tableContext = useContext(TableContext);
+    const apiRef = useGridApiRef();
     // -----
 
     // Params
@@ -74,7 +83,10 @@ export const CoreGrid = (props: PropsType) => {
     } | null>(null);
     const [selectedRow, setSelectedRow] = useState<DataRowModel | null>(null);
     const [historyModalVisible, setHistoryModalVisible] = useState(false);
-    const [promiseArguments, setPromiseArguments] = useState<any | null>(null);
+    const [cellEditConfirmModalVisible, setCellEditConfirmModalVisible] = useState(false);
+    const [cellSelectionModel, setCellSelectionModel] =
+        React.useState<GridCellSelectionModel>({});
+    const [numberOfSelectedCells, setNumberOfSelectedCells] = useState(0);
     // -----
 
     // Web requests
@@ -95,6 +107,9 @@ export const CoreGrid = (props: PropsType) => {
     const [getRowPermissions, {
         data: rowsPermissionsFromRequest,
     }] = rowPermissionsAPI.useGetAllByUserIdMutation();
+    const [getColumnPermissions, {
+        data: columnsPermissionsFromRequest,
+    }] = columnPermissionsAPI.useGetAllByUserIdMutation();
     // -----
 
     // Effects
@@ -110,30 +125,65 @@ export const CoreGrid = (props: PropsType) => {
                 else return 1;
             });
             // -----
+
             const columns: GridColDef[] = sortedByOrderColumns.map((column: ColumnModel) => {
                 return {
                     field: column.id ? column.id.toString() : "999",
-                    headerName: column.name,
                     editable: true,
-                    width: 200,
+                    minWidth: 200,
+                    headerName: column.name,
+                    renderHeader: () => (<Flex style={{minWidth: 200}} vertical>
+                        <Flex>{column.name}</Flex>
+                        <Flex gap={'small'} align={'center'}>
+                            {/*@ts-ignore*/}
+                            <Tag>{column.order != undefined ? COLUMN_KEYS[column.order.toString()] : ""}</Tag>
+                            <Tag color={'blue'}>{column.data_type == 'text' ? 'строка' :
+                                column.data_type == 'integer' ? 'число' :
+                                    column.data_type == 'float' ? 'число' :
+                                        column.data_type == 'date' ? 'дата' :
+                                            column.data_type == 'datetime' ? 'дата и время' :
+                                                column.data_type == 'boolean' ? 'список' :
+                                                    column.data_type == 'select' ? 'список' :
+                                                        column.data_type == 'auto' ? 'счетчик' :
+                                                        'строка'}</Tag>
+                        </Flex>
+                    </Flex>),
                     type: column.data_type == 'text' ? 'string' :
                         column.data_type == 'integer' ? 'number' :
                             column.data_type == 'float' ? 'number' :
                                 column.data_type == 'date' ? 'date' :
-                                    column.data_type == 'boolean' ? 'singleSelect' :
-                                        column.data_type == 'select' ? 'singleSelect' :
-                                            'string',
+                                    column.data_type == 'datetime' ? 'dateTime' :
+                                        column.data_type == 'boolean' ? 'singleSelect' :
+                                            column.data_type == 'select' ? 'singleSelect' :
+                                                'string',
                     valueGetter: (params: CellModel) => {
                         if (params.value == null)
                             return "";
                         if (typeof params.value == "object") {
                             // Встретили дату
-                            params.value as Date;
-                            return formatDate(params.value);
+                            //@ts-ignore
+                            if (params.value.getHours() == 0)
+                                return formatDate(params.value);
+                            else
+                                return formatDateTime(params.value);
                         } else {
                             // Если тип данных колонки явно указан - Дата. Следует проверить не является ли датой ячейка
                             if (column.data_type == 'date') {
-                                if (isValidDateString(params.value)) return new Date(params.value.replace('.', '-'));
+                                if (dayjs(params.value, "DD.MM.YYYY").isValid()) {
+                                    const [day, month, year] = params.value.split('.');
+                                    //@ts-ignore
+                                    return new Date(year, month-1, day)
+                                }
+                            }
+                            if (column.data_type == 'datetime') {
+                                if (dayjs(params.value, "DD.MM.YYYY HH:mm").isValid() || dayjs(params.value, "DD.MM.YYYY").isValid()) {
+                                    let djs = dayjs(params.value, "DD.MM.YYYY HH:mm").isValid() ?
+                                        dayjs(params.value, "DD.MM.YYYY HH:mm")
+                                        :
+                                        dayjs(params.value, "DD.MM.YYYY");
+                                    //@ts-ignore
+                                    return new Date(djs.year(), djs.month(), djs.date(), djs.hour(), djs.minute(), 0)
+                                }
                             }
                             // -----
                             return params.value;
@@ -150,7 +200,10 @@ export const CoreGrid = (props: PropsType) => {
                         if (typeof params == "object") {
                             // Встретили дату
                             params as Date;
-                            return formatDate(params);
+                            if (params.getHours() == 0)
+                                return formatDate(params);
+                            else
+                                return formatDateTime(params);
                         } else
                             return params;
                     },
@@ -170,23 +223,24 @@ export const CoreGrid = (props: PropsType) => {
                 aggregable: false,
                 sortable: false,
                 filterable: false,
-                renderCell: (data) => (<Flex style={{height: '100%'}} gap={'small'} align={'center'} justify={'center'}>
-                    <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
-                        if (tableContext) {
-                            tableContext.setIsVisibleRowSettingsModal(true);
-                            tableContext.setSelectedRowId(data.row.id);
-                        }
-                    }}/>
-                    <Popconfirm title={"Вы точно хотите удалить строку?"} okText={"Да"} onConfirm={() => {
-                        deleteRow(data.row.id);
-                        props.setContext((prev: TableContextType) => ({
-                            ...prev,
-                            rows: prev.rows.filter((row) => row.id != data.row.id)
-                        }));
-                    }}>
-                        <Button size={'small'} danger icon={<DeleteRowOutlined/>}/>
-                    </Popconfirm>
-                </Flex>)
+                renderCell: (data) => (
+                    <Flex style={{height: '100%'}} gap={'small'} align={'center'} justify={'center'}>
+                        <Button size={'small'} icon={<SettingOutlined/>} onClick={() => {
+                            if (tableContext) {
+                                tableContext.setIsVisibleRowSettingsModal(true);
+                                tableContext.setSelectedRowId(data.row.id);
+                            }
+                        }}/>
+                        <Popconfirm title={"Вы точно хотите удалить строку?"} okText={"Да"} onConfirm={() => {
+                            deleteRow(data.row.id);
+                            props.setContext((prev: TableContextType) => ({
+                                ...prev,
+                                rows: prev.rows.filter((row) => row.id != data.row.id)
+                            }));
+                        }}>
+                            <Button size={'small'} danger icon={<DeleteRowOutlined/>}/>
+                        </Popconfirm>
+                    </Flex>)
             };
             let orderColumn: GridColDef = {
                 field: "order",
@@ -200,8 +254,14 @@ export const CoreGrid = (props: PropsType) => {
             columns.push(orderColumn);
             columns.push(actionColumn);
             props.setContext((prev: TableContextType) => ({...prev, columns}));
+
             // Отправляю запрос на получение данных
             getTableData({tableId: id, page: ++paginationModel.page, limit: paginationModel.pageSize});
+            // -----
+
+            // Получаем права на колонки
+            if (currentUser && id)
+                getColumnPermissions({table_id: id, user_id: currentUser.id, columnIds: columns.map(column => parseInt(column.field))});
             // -----
         }
     }, [columnsFromRequest]);
@@ -255,6 +315,11 @@ export const CoreGrid = (props: PropsType) => {
         }
     }, [rowsPermissionsFromRequest]);
     useEffect(() => {
+        if (columnsPermissionsFromRequest) {
+            props.setContext((prev: TableContextType) => ({...prev, columnPermissions: columnsPermissionsFromRequest}));
+        }
+    }, [columnsPermissionsFromRequest]);
+    useEffect(() => {
         if (isDeleteRowSuccess) {
             notification.success({
                 message: "Успешно!",
@@ -264,7 +329,7 @@ export const CoreGrid = (props: PropsType) => {
     }, [isDeleteRowSuccess]);
     // -----
 
-    // Handler
+    // Handlers
     const onCellEditStartHandler = (params: GridCellParams) => {
         // Создаем блокировку на сервере
         if (props.wsCellLocks) {
@@ -274,8 +339,42 @@ export const CoreGrid = (props: PropsType) => {
         // -----
     };
     const onCellEditStopHandler = (params: GridCellParams, event:any) => {
-        if (1){
-            event.defaultMuiPrevented = true;
+        if (tableContext?.withCellConfirm) {
+            const userConfirmed = window.confirm(
+                `Сохранить изменение в ячейке?`
+            );
+            if (userConfirmed) {
+                setTimeout(() => {
+                    // Ебаный костыль из-за асинхронного обновления грида
+                    const actualValue = apiRef.current.getCellValue(params.id, params.field);
+                    // Обновляем значение ячейки на сервере
+                    if (props.wsCellsUpdate) {
+                        let cellId: number = params.row[params.field].id;
+                        props.wsCellsUpdate.send(JSON.stringify({
+                            cell_id: cellId,
+                            type: 'update',
+                            user_id: currentUser?.id,
+                            value: actualValue ?? ""
+                        }));
+                    }
+                    // -----
+                }, 10);
+                // Снимаем блокировку на сервере
+                if (props.wsCellLocks) {
+                    let cellId: number = params.row[params.field].id;
+                    props.wsCellLocks.send(JSON.stringify({cell_id: cellId, type: 'remove', user_id: currentUser?.id}));
+                }
+                // -----
+            } else {
+                event.defaultMuiPrevented = true;
+                // Принудительно завершаем
+                apiRef.current.stopCellEditMode({
+                    id: params.id,
+                    field: params.field,
+                    ignoreModifications: true // Отмена изменений
+                });
+                // -----
+            }
         } else {
             setTimeout(() => {
                 // Ебаный костыль из-за асинхронного обновления грида
@@ -283,7 +382,12 @@ export const CoreGrid = (props: PropsType) => {
                 // Обновляем значение ячейки на сервере
                 if (props.wsCellsUpdate) {
                     let cellId: number = params.row[params.field].id;
-                    props.wsCellsUpdate.send(JSON.stringify({cell_id: cellId, type: 'update', user_id: currentUser?.id, value: actualValue ?? ""}));
+                    props.wsCellsUpdate.send(JSON.stringify({
+                        cell_id: cellId,
+                        type: 'update',
+                        user_id: currentUser?.id,
+                        value: actualValue ?? ""
+                    }));
                 }
                 // -----
             }, 10);
@@ -297,14 +401,16 @@ export const CoreGrid = (props: PropsType) => {
     };
     const isCellEditableHandler = useCallback((params: GridCellParams) => {
         if (tableContext) {
-            let isEditable = false;
-            isEditable = !tableContext.lockedCellsIds.find((lock => lock.cell_id == params.row[params.field].id && currentUser?.id !== lock.user_id));
-            isEditable = tableContext.rowPermissions?.find((rp: RowPermissionsModel) => rp.row == params.row.id) != undefined;
-            return isEditable;
+            let isEditableCell = false;
+            let isRowEditablePermission = false;
+            let isColumnEditablePermission = false;
+            isEditableCell = !tableContext.lockedCellsIds.find((lock => lock.cell_id == params.row[params.field].id && currentUser?.id !== lock.user_id));
+            isRowEditablePermission = tableContext.rowPermissions?.find((rp: PermissionModel) => rp.row == params.row.id) != undefined;
+            isColumnEditablePermission = tableContext.columnPermissions?.find((cp: PermissionModel) => cp.column?.toString() == params.field) != undefined;
+            return isEditableCell && isRowEditablePermission && isColumnEditablePermission;
         }
         return true;
     }, [tableContext]);
-
     const debouncedSetFilter = useCallback(
         debounce((params: GridFilterModel) => {
             // Здесь отправка запроса на сервер
@@ -396,12 +502,27 @@ export const CoreGrid = (props: PropsType) => {
     };
     const columnOrderChangeHandler = (event: { column: GridColDef, oldIndex: number, targetIndex: number }) => {
         if (props.wsCellsUpdate && id) {
-            props.wsCellsUpdate.send(JSON.stringify({type: 'column_reorder', table_id: id, old_index: event.oldIndex + 1, new_index: event.targetIndex + 1}));
+            props.wsCellsUpdate.send(JSON.stringify({type: 'column_reorder', table_id: id, old_index: event.oldIndex , new_index: event.targetIndex}));
         }
     };
+    const handleCellSelectionModelChange = useCallback(
+        (newModel: GridCellSelectionModel) => {
+            setCellSelectionModel(newModel);
+        },
+        [],
+    );
     // -----
 
     // Useful utils
+
+    // Генерация уникального ID
+    const generateNewId = () => {
+        if (tableContext?.rows) {
+            const maxId = tableContext.rows.length > 0 ? Math.max(...tableContext.rows.map((row:any) => row.id)) : 0;
+            return maxId + 1;
+        }
+        return Date.now(); // fallback ID
+    };
 
     // Обработчик контекстного меню
     const handleContextMenu = useCallback((event: React.MouseEvent) => {
@@ -466,9 +587,91 @@ export const CoreGrid = (props: PropsType) => {
         setContextMenu(null);
     };
 
+    const handleInsertCellValues = () => {
+        if (tableContext?.rows) {
+            const data = tableContext.rows;
+            let firstCell: any | undefined;
+            // Обход строк
+            Object.keys(cellSelectionModel).map((rowId: any) => {
+                let row:any = data.find((row:DataRowModel) => row.id == rowId);
+                if (row) {
+                    // Обход колонок
+                    Object.keys(row).map((columnId: string) => {
+                        if (row) {
+                            let cell = row[columnId];
+                            if (typeof cell == 'object') {
+                                let selectedColumnId = cellSelectionModel[rowId];
+                                if (selectedColumnId[cell.column]) {
+                                    if (!firstCell) {
+                                        firstCell = cell; // Значение 1ой ячейки не трогаем это оригинал
+                                    } else {
+                                        setTimeout(() => {
+                                            // Обновляем значение ячейки на сервере
+                                            if (props.wsCellsUpdate) {
+                                                let cellId: number = cell.id;
+                                                props.wsCellsUpdate.send(JSON.stringify({
+                                                    cell_id: cellId,
+                                                    type: 'update',
+                                                    user_id: currentUser?.id,
+                                                    value: firstCell.value ?? ""
+                                                }));
+                                            }
+                                            // -----
+                                        }, 10);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    };
+
+    const handleClearCellValues = () => {
+        if (tableContext?.rows) {
+            const data = tableContext.rows;
+            // Обход строк
+            Object.keys(cellSelectionModel).map((rowId: any) => {
+                let row:any = data.find((row:DataRowModel) => row.id == rowId);
+                if (row) {
+                    // Обход колонок
+                    Object.keys(row).map((columnId: string) => {
+                        if (row) {
+                            let cell = row[columnId];
+                            if (typeof cell == 'object') {
+                                let selectedColumnId = cellSelectionModel[rowId];
+                                if (selectedColumnId[cell.column]) {
+                                    setTimeout(() => {
+                                        // Обновляем значение ячейки на сервере
+                                        if (props.wsCellsUpdate) {
+                                            let cellId: number = cell.id;
+                                            props.wsCellsUpdate.send(JSON.stringify({
+                                                cell_id: cellId,
+                                                type: 'update',
+                                                user_id: currentUser?.id,
+                                                value: ""
+                                            }));
+                                        }
+                                        // -----
+                                    }, 10);
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    };
+
     const handleCloseContextMenu = () => {
         setContextMenu(null);
     };
+
+    const handlePaginationChange = (smth:{page: number, pageSize:number}) => {
+        if (!isTableDataLoading)
+            setPaginationModel(smth);
+    }
 
     // Стили для новых строк
     const getRowClassName = (params: any) => {
@@ -505,22 +708,21 @@ export const CoreGrid = (props: PropsType) => {
             key: 'show-history',
             label: 'Просмотреть историю изменений',
             icon: <HistoryOutlined />,
-            onClick: showHistoryModalHandler
+            onClick: showHistoryModalHandler,
         },
+        {
+            key: 'copy-content',
+            label: 'Растянуть значания',
+            icon: <PlusOutlined />,
+            onClick: handleInsertCellValues,
+        },
+        {
+            key: 'clear-content',
+            label: 'Очистить',
+            icon: <DeleteOutlined />,
+            onClick: handleClearCellValues,
+        }
     ];
-
-    const apiRef = useGridApiRef();
-
-    const processRowUpdateHandler = useCallback((newRow: GridRowModel, oldRow:GridRowModel) => {
-        new Promise<GridRowModel>((resolve, reject) => {
-            const mutation = computeMutation(newRow, oldRow);
-            if (mutation) {
-                //setPromiseArguments({resolve, reject, newRow, oldRow});
-            } else {
-                resolve(oldRow);
-            }
-        });
-    }, []);
     // -----
 
     return (
@@ -528,6 +730,7 @@ export const CoreGrid = (props: PropsType) => {
             style={{height: window.innerHeight - 220, width: '100%'}}
             onContextMenu={handleContextMenu}
         >
+            {cellEditConfirmModalVisible && <ConfirmCellEditModal ref={apiRef} visible={cellEditConfirmModalVisible} setVisible={setCellEditConfirmModalVisible}/>}
             {(selectedRow && historyModalVisible) && <EditLogModal visible={historyModalVisible} setVisible={setHistoryModalVisible} rowId={selectedRow.id}/>}
             <DataGridPremium
                 apiRef={apiRef}
@@ -538,7 +741,7 @@ export const CoreGrid = (props: PropsType) => {
                 filterMode="server"
                 rowCount={tableData ? tableData?.count : 0}
                 paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
+                onPaginationModelChange={handlePaginationChange}
                 onSortModelChange={(model) => handleSortChange(model)}
                 onFilterModelChange={(model) => handleFilterChange(model)}
                 pageSizeOptions={[25, 50, 100, 200, 300, 400, 500, 600]}
@@ -549,12 +752,12 @@ export const CoreGrid = (props: PropsType) => {
                 isCellEditable={isCellEditableHandler}
                 onCellEditStart={onCellEditStartHandler}
                 onCellEditStop={onCellEditStopHandler}
-                columnBufferPx={100}
-                rowBufferPx={100}
+                columnBufferPx={300}
+                rowBufferPx={300}
                 localeText={ruRU.components.MuiDataGrid.defaultProps.localeText}
                 rows={tableContext?.rows || []}
                 columns={tableContext ? tableContext.columns : []}
-                getRowHeight={() => 'auto'}
+                //getRowHeight={() => 'auto'}
                 sx={{
                     [`& .${gridClasses.cell}`]: {
                         p: 0,
@@ -572,23 +775,35 @@ export const CoreGrid = (props: PropsType) => {
                         userSelect: 'none',
                     }
                 }}
+                //disableVirtualization={true}  // Явно убедитесь, что виртуализация включена
+                // Опционально: стандартные настройки пагинации
+                slotProps={{
+                    pagination: {
+                        showFirstButton: true,
+                        showLastButton: true,
+                    },
+                }}
                 loading={isTableDataLoading || isTableColumnsLoading}
                 slots={{
                     columnMenu: ColumnMenu,
+                    pagination: CustomPaginationWithSelect
                 }}
                 getRowClassName={getRowClassName}
                 initialState={{
                     pinnedColumns: {right: ['action'], left: ['order']}
                 }}
-                //@ts-ignore
-                processRowUpdate={processRowUpdateHandler}
+                // Выбор ячеек
+                cellSelectionModel={cellSelectionModel}
+                onCellSelectionModelChange={handleCellSelectionModelChange}
+                cellSelection
+                // -----
             />
 
             {/* Контекстное меню*/}
             <Dropdown
                 open={!!contextMenu}
                 onOpenChange={(open) => !open && handleCloseContextMenu()}
-                menu={{ items: contextMenuItems }}
+                menu={{ items: contextMenuItems}}
                 trigger={['contextMenu']}
             >
                 <div

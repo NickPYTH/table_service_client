@@ -1,57 +1,60 @@
 import {Button, Flex, Popconfirm, Table, TableProps, Typography} from "antd";
 import React, {useEffect, useState} from "react";
 import {AddUserModal} from "../../AddUserModal";
-import {RowPermissionsModel} from "entities/RowPermissionsModel";
+import {PermissionModel} from "entities/PermissionModel";
 import {rowPermissionsAPI} from "service/RowPermissionsService";
-import {EditUserPermission} from "pages/TablePage/ui/RowSettings/UserSettings/EditUserPermission";
+import {EditUserPermission} from "pages/TablePage/ui/Settings/UserSettings/EditUserPermission";
 
 const {Text} = Typography;
 
 type ModalProps = {
-    rowId: number,
-}
+    id: number;
+    type: string; // table column row
+
+    // Получение прав
+    getPermissions: Function;
+    permissions: PermissionModel[] | undefined;
+    isPermissionsLoading: boolean;
+    // -----
+
+    // Удаление прав
+    deletePermission: Function;
+    isDeletePermissionLoading: boolean;
+    isSuccessDeletePermission: boolean;
+    // -----
+
+};
 
 export const UserPermission = (props: ModalProps) => {
 
     // States
-    const [rowPermissionsData, setRowPermissionsData] = useState<RowPermissionsModel[]>([]);
+    const [rowPermissionsData, setRowPermissionsData] = useState<PermissionModel[]>([]);
     const [isVisibleAddUserModal, setIsVisibleAddUserModal] = useState(false);
     const [isVisibleEditUserPermissionModal, setIsVisibleEditUserPermissionModal] = useState(false);
-    const [selectedPermission, setSelectedPermission] = useState<RowPermissionsModel | null>(null);
-    // -----
-
-    // Web requests
-    const [getPermissionByRowId, {
-        data: permissions,
-        isLoading: isLoadingGetPermissionByRowId
-    }] = rowPermissionsAPI.useGetAllByRowIdMutation();
-    const [deleteRowPermission, {
-        isSuccess: isSuccessDeleteRowPermission,
-        isLoading: isLoadingDeleteRowPermission
-    }] = rowPermissionsAPI.useDeleteMutation();
+    const [selectedPermission, setSelectedPermission] = useState<PermissionModel | null>(null);
     // -----
 
     // Effects
     useEffect(() => {
-        getPermissionByRowId(props.rowId);
+        props.getPermissions(props.id);
         setSelectedPermission(null);
     }, []);
     useEffect(() => {
-        if (permissions) setRowPermissionsData(permissions);
-    }, [permissions]);
+        if (props.permissions) setRowPermissionsData(props.permissions);
+    }, [props.permissions]);
     useEffect(() => {
-        if (isSuccessDeleteRowPermission) getPermissionByRowId(props.rowId);
-    }, [isSuccessDeleteRowPermission]);
+        if (props.isSuccessDeletePermission) props.getPermissions(props.id);
+    }, [props.isSuccessDeletePermission]);
     // -----
 
     // Handlers
     const deletePermissionHandler = (permissionId: number) => {
-        deleteRowPermission(permissionId);
+        props.deletePermission(permissionId);
     }
     // -----
 
     // Columns
-    const permissionsTableColumns: TableProps<RowPermissionsModel>['columns'] = [
+    const permissionsTableColumns: TableProps<PermissionModel>['columns'] = [
         {
             title: 'ИД',
             dataIndex: 'id',
@@ -64,7 +67,7 @@ export const UserPermission = (props: ModalProps) => {
             title: 'Пользователь',
             dataIndex: 'user',
             key: 'user',
-            render: (value, record) => (<div>{record.user_model.username}</div>)
+            render: (value, record) => (<div>{record.user_model?.username}</div>)
         },
         {
             title: 'Редактирование',
@@ -81,7 +84,7 @@ export const UserPermission = (props: ModalProps) => {
                     setIsVisibleEditUserPermissionModal(true);
                     setSelectedPermission(record);
                 }}>Изменить</Button>
-                <Popconfirm title={`Вы точно хотите удалить доступ пользователя ${record.user_model.username}?`}
+                <Popconfirm title={`Вы точно хотите удалить доступ пользователя ${record.user_model?.username}?`}
                             onConfirm={() => deletePermissionHandler(record.id)}
                 >
                     <Button size={'small'} danger>Удалить</Button>
@@ -95,13 +98,14 @@ export const UserPermission = (props: ModalProps) => {
         <Flex gap={'small'} vertical>
             {(isVisibleEditUserPermissionModal && selectedPermission) &&
                 <EditUserPermission permission={selectedPermission}
-                                    refresh={() => getPermissionByRowId(props.rowId)}
+                                    refresh={() => props.getPermissions(props.id)}
                                     visible={isVisibleEditUserPermissionModal}
                                     setVisible={setIsVisibleEditUserPermissionModal}/>}
             {isVisibleAddUserModal &&
                 <AddUserModal
-                    type={'table'}
-                    refresh={() => getPermissionByRowId(props.rowId)}
+                    id={props.id}
+                    type={props.type}
+                    refresh={() => props.getPermissions(props.id)}
                     visible={isVisibleAddUserModal}
                     setVisible={setIsVisibleAddUserModal}/>}
             <Text>Права доступа пользователей</Text>
@@ -109,7 +113,7 @@ export const UserPermission = (props: ModalProps) => {
             <Table
                 columns={permissionsTableColumns}
                 dataSource={rowPermissionsData}
-                loading={isLoadingGetPermissionByRowId || isLoadingDeleteRowPermission}
+                loading={props.isPermissionsLoading || props.isDeletePermissionLoading}
                 bordered
             />
         </Flex>
