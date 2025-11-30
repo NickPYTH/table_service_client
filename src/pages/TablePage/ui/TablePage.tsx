@@ -72,7 +72,7 @@ export type DataRowModel = {
 
 export type TableContextType = {
     owner: UserModel | null,
-    withCellConfirm: boolean | null,
+    withCellConfirm: boolean,
     ws: WebSocket | null;
     demonWS: WebSocket | null;
     lockedCellsIds: { user_id: number, cell_id: number }[];
@@ -182,7 +182,7 @@ const TablePage: React.FC = () => {
     const [isTableOwner, setIsTableOwner] = useState(false);
     const [context, setContext] = useState<TableContextType>({
         owner: null,
-        withCellConfirm: null,
+        withCellConfirm: false,
         ws: null,
         demonWS: null,
         lockedCellsIds: [],

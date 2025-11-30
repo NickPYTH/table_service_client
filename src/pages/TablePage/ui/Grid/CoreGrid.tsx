@@ -83,10 +83,8 @@ export const CoreGrid = (props: PropsType) => {
     } | null>(null);
     const [selectedRow, setSelectedRow] = useState<DataRowModel | null>(null);
     const [historyModalVisible, setHistoryModalVisible] = useState(false);
-    const [cellEditConfirmModalVisible, setCellEditConfirmModalVisible] = useState(false);
-    const [cellSelectionModel, setCellSelectionModel] =
-        React.useState<GridCellSelectionModel>({});
-    const [numberOfSelectedCells, setNumberOfSelectedCells] = useState(0);
+    const [cellEditConfirmModal, setCellEditConfirmModal] = useState({visible: false, cellId: -1, cellValue: "", oldCellValue: ""});
+    const [cellSelectionModel, setCellSelectionModel] = React.useState<GridCellSelectionModel>({});
     // -----
 
     // Web requests
@@ -339,75 +337,62 @@ export const CoreGrid = (props: PropsType) => {
         // -----
     };
     const onCellEditStopHandler = (params: GridCellParams, event:any) => {
+        let cellId: number = params.row[params.field].id;
         if (tableContext?.withCellConfirm) {
-            const userConfirmed = window.confirm(
-                `Сохранить изменение в ячейке?`
-            );
-            if (userConfirmed) {
-                setTimeout(() => {
-                    // Ебаный костыль из-за асинхронного обновления грида
-                    const actualValue = apiRef.current.getCellValue(params.id, params.field);
-                    // Обновляем значение ячейки на сервере
-                    if (props.wsCellsUpdate) {
-                        let cellId: number = params.row[params.field].id;
-                        props.wsCellsUpdate.send(JSON.stringify({
-                            cell_id: cellId,
-                            type: 'update',
-                            user_id: currentUser?.id,
-                            value: actualValue ?? ""
-                        }));
-                    }
-                    // -----
-                }, 10);
-                // Снимаем блокировку на сервере
-                if (props.wsCellLocks) {
-                    let cellId: number = params.row[params.field].id;
-                    props.wsCellLocks.send(JSON.stringify({cell_id: cellId, type: 'remove', user_id: currentUser?.id}));
-                }
-                // -----
-            } else {
-                event.defaultMuiPrevented = true;
-                // Принудительно завершаем
-                apiRef.current.stopCellEditMode({
-                    id: params.id,
-                    field: params.field,
-                    ignoreModifications: true // Отмена изменений
-                });
-                // -----
-            }
-        } else {
             setTimeout(() => {
-                // Ебаный костыль из-за асинхронного обновления грида
-                const actualValue = apiRef.current.getCellValue(params.id, params.field);
-                // Обновляем значение ячейки на сервере
-                if (props.wsCellsUpdate) {
-                    let cellId: number = params.row[params.field].id;
-                    props.wsCellsUpdate.send(JSON.stringify({
-                        cell_id: cellId,
-                        type: 'update',
-                        user_id: currentUser?.id,
-                        value: actualValue ?? ""
-                    }));
-                }
-                // -----
-            }, 10);
-            // Снимаем блокировку на сервере
-            if (props.wsCellLocks) {
-                let cellId: number = params.row[params.field].id;
-                props.wsCellLocks.send(JSON.stringify({cell_id: cellId, type: 'remove', user_id: currentUser?.id}));
+                const cellValue = apiRef.current.getCellValue(params.id, params.field); // row id and column id
+                //@ts-ignore
+                const oldCellValue = tableContext.rows.find((row: RowModel) => row.id === params.id)[params.field]?.value;
+                setCellEditConfirmModal({
+                    visible: true,
+                    cellId,
+                    cellValue,
+                    oldCellValue
+                })
+                // Затираем значение в ячейке, тк ждем его подтверждение в модалке
+                props.setContext((prevState: TableContextType) => {
+                    let data = JSON.parse(JSON.stringify(prevState.rows));
+                    //@ts-ignore
+                    data.find((row: RowModel) => row.id === params.id)[params.field].value = "";
+                    return {...prevState, rows: data};
+                });
+            }, 200)
+        }
+        setTimeout(() => {
+            // Ебаный костыль из-за асинхронного обновления грида
+            const actualValue = apiRef.current.getCellValue(params.id, params.field);
+            // Обновляем значение ячейки на сервере
+            if (props.wsCellsUpdate) {
+
+                props.wsCellsUpdate.send(JSON.stringify({
+                    cell_id: cellId,
+                    type: 'update',
+                    user_id: currentUser?.id,
+                    value: actualValue ?? ""
+                }));
             }
             // -----
+        }, 10);
+        // Снимаем блокировку на сервере
+        if (props.wsCellLocks) {
+            props.wsCellLocks.send(JSON.stringify({cell_id: cellId, type: 'remove', user_id: currentUser?.id}));
         }
+        // -----
     };
     const isCellEditableHandler = useCallback((params: GridCellParams) => {
         if (tableContext) {
             let isEditableCell = false;
             let isRowEditablePermission = false;
             let isColumnEditablePermission = false;
+            let isConfirmModeWithFilledCell = true;
             isEditableCell = !tableContext.lockedCellsIds.find((lock => lock.cell_id == params.row[params.field].id && currentUser?.id !== lock.user_id));
             isRowEditablePermission = tableContext.rowPermissions?.find((rp: PermissionModel) => rp.row == params.row.id) != undefined;
             isColumnEditablePermission = tableContext.columnPermissions?.find((cp: PermissionModel) => cp.column?.toString() == params.field) != undefined;
-            return isEditableCell && isRowEditablePermission && isColumnEditablePermission;
+            if (tableContext.withCellConfirm && tableContext.owner?.id != currentUser?.id) {
+                if (params.row[params.field].value != null || params.row[params.field] != "")
+                    isConfirmModeWithFilledCell = false;
+            }
+            return isEditableCell && isRowEditablePermission && isColumnEditablePermission && isConfirmModeWithFilledCell;
         }
         return true;
     }, [tableContext]);
@@ -515,16 +500,6 @@ export const CoreGrid = (props: PropsType) => {
 
     // Useful utils
 
-    // Генерация уникального ID
-    const generateNewId = () => {
-        if (tableContext?.rows) {
-            const maxId = tableContext.rows.length > 0 ? Math.max(...tableContext.rows.map((row:any) => row.id)) : 0;
-            return maxId + 1;
-        }
-        return Date.now(); // fallback ID
-    };
-
-    // Обработчик контекстного меню
     const handleContextMenu = useCallback((event: React.MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
@@ -730,7 +705,7 @@ export const CoreGrid = (props: PropsType) => {
             style={{height: window.innerHeight - 220, width: '100%'}}
             onContextMenu={handleContextMenu}
         >
-            {cellEditConfirmModalVisible && <ConfirmCellEditModal ref={apiRef} visible={cellEditConfirmModalVisible} setVisible={setCellEditConfirmModalVisible}/>}
+            {cellEditConfirmModal.visible && <ConfirmCellEditModal id={cellEditConfirmModal.cellId} value={cellEditConfirmModal.cellValue} oldValue={cellEditConfirmModal.oldCellValue} close={() => setCellEditConfirmModal({visible: false, cellValue: "", oldCellValue: "", cellId: -1})}/>}
             {(selectedRow && historyModalVisible) && <EditLogModal visible={historyModalVisible} setVisible={setHistoryModalVisible} rowId={selectedRow.id}/>}
             <DataGridPremium
                 apiRef={apiRef}

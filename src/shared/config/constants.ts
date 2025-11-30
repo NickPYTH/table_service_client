@@ -8,9 +8,9 @@ if (document.location.host.split(':')[1]) {
 } else
     host += ''
 
-export const wsHost = 'wss://sco1-vapp-09.sgp.ru';
+//export const wsHost = 'wss://sco1-vapp-09.sgp.ru';
 //export const wsHost = 'wss://test-vapp-03.sgp.ru';
-//export const wsHost = 'ws://localhost:8000';
+export const wsHost = 'ws://localhost:8000';
 
 export const COLUMN_KEYS:any = {
     "1": 'A',

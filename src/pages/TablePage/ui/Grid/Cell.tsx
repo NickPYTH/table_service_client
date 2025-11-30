@@ -37,6 +37,10 @@ export const Cell = (props: PropsType) => {
                     ||
                 tableContext.columnPermissions?.find((cp: PermissionModel) => cp.column == props.column.id) == undefined
                 )
+                ||
+                (
+                    tableContext.withCellConfirm && props.formattedValue.length > 0 && tableContext.owner?.id != currentUser?.id
+                )
             );
         }
     }, [tableContext]);
